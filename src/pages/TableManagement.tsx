@@ -1,135 +1,183 @@
 
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Users, Clock, Plus } from "lucide-react";
+import { toast } from "sonner";
+import { 
+  Users, 
+  Calendar, 
+  Clock, 
+  Plus,
+  Edit3,
+  Trash2,
+  CheckCircle2,
+  AlertCircle,
+  Coffee
+} from "lucide-react";
 
 interface Table {
   id: number;
-  seats: number;
+  number: number;
+  capacity: number;
   status: 'available' | 'occupied' | 'reserved' | 'cleaning';
   currentOrder?: string;
-  reservationName?: string;
-  reservationTime?: string;
-  occupiedSince?: Date;
+  reservedBy?: string;
+  reservedTime?: Date;
+  customerCount?: number;
+}
+
+interface Reservation {
+  id: string;
+  tableNumber: number;
+  customerName: string;
+  customerPhone: string;
+  partySize: number;
+  reservationTime: Date;
+  notes?: string;
 }
 
 const TableManagement = () => {
-  const navigate = useNavigate();
   const [tables, setTables] = useState<Table[]>([
-    { id: 1, seats: 2, status: 'available' },
-    { id: 2, seats: 4, status: 'occupied', currentOrder: 'D-001', occupiedSince: new Date(Date.now() - 45 * 60000) },
-    { id: 3, seats: 2, status: 'available' },
-    { id: 4, seats: 6, status: 'reserved', reservationName: 'Smith Family', reservationTime: '7:30 PM' },
-    { id: 5, seats: 4, status: 'occupied', currentOrder: 'D-003', occupiedSince: new Date(Date.now() - 20 * 60000) },
-    { id: 6, seats: 2, status: 'cleaning' },
-    { id: 7, seats: 8, status: 'available' },
-    { id: 8, seats: 4, status: 'available' },
-    { id: 9, seats: 2, status: 'available' },
-    { id: 10, seats: 4, status: 'reserved', reservationName: 'Johnson', reservationTime: '8:00 PM' },
-    { id: 11, seats: 6, status: 'available' },
-    { id: 12, seats: 2, status: 'available' },
-    { id: 13, seats: 4, status: 'available' },
-    { id: 14, seats: 2, status: 'occupied', currentOrder: 'D-005', occupiedSince: new Date(Date.now() - 15 * 60000) },
-    { id: 15, seats: 6, status: 'available' }
+    { id: 1, number: 1, capacity: 2, status: 'available' },
+    { id: 2, number: 2, capacity: 4, status: 'occupied', currentOrder: 'D-001', customerCount: 3 },
+    { id: 3, number: 3, capacity: 6, status: 'reserved', reservedBy: 'John Doe', reservedTime: new Date(Date.now() + 1800000) },
+    { id: 4, number: 4, capacity: 2, status: 'cleaning' },
+    { id: 5, number: 5, capacity: 4, status: 'available' },
+    { id: 6, number: 6, capacity: 8, status: 'available' },
+    { id: 7, number: 7, capacity: 4, status: 'occupied', currentOrder: 'D-003', customerCount: 4 },
+    { id: 8, number: 8, capacity: 2, status: 'available' },
   ]);
 
-  const [selectedTable, setSelectedTable] = useState<Table | null>(null);
+  const [reservations, setReservations] = useState<Reservation[]>([
+    {
+      id: '1',
+      tableNumber: 3,
+      customerName: 'John Doe',
+      customerPhone: '+91 9876543210',
+      partySize: 4,
+      reservationTime: new Date(Date.now() + 1800000),
+      notes: 'Anniversary dinner'
+    }
+  ]);
+
+  const [showReservationDialog, setShowReservationDialog] = useState(false);
+  const [selectedTable, setSelectedTable] = useState<number | null>(null);
   const [reservationForm, setReservationForm] = useState({
-    name: '',
-    time: '',
-    guests: 2
+    customerName: '',
+    customerPhone: '',
+    partySize: 1,
+    reservationTime: '',
+    notes: ''
   });
 
-  const updateTableStatus = (tableId: number, newStatus: Table['status']) => {
-    setTables(prev => 
-      prev.map(table => 
-        table.id === tableId 
-          ? { ...table, status: newStatus, occupiedSince: newStatus === 'occupied' ? new Date() : undefined }
-          : table
-      )
-    );
+  const updateTableStatus = (tableId: number, status: Table['status']) => {
+    setTables(prev => prev.map(table => 
+      table.id === tableId 
+        ? { ...table, status, ...(status === 'available' ? { currentOrder: undefined, customerCount: undefined } : {}) }
+        : table
+    ));
+    
+    toast.success(`Table ${tables.find(t => t.id === tableId)?.number} marked as ${status}`);
   };
 
-  const makeReservation = (tableId: number) => {
-    setTables(prev => 
-      prev.map(table => 
-        table.id === tableId 
-          ? { 
-              ...table, 
-              status: 'reserved', 
-              reservationName: reservationForm.name,
-              reservationTime: reservationForm.time
-            }
-          : table
-      )
-    );
-    setReservationForm({ name: '', time: '', guests: 2 });
-  };
-
-  const getTableColor = (status: Table['status']) => {
+  const getStatusColor = (status: Table['status']) => {
     switch (status) {
-      case 'available': return 'bg-green-100 border-green-300 hover:bg-green-200';
-      case 'occupied': return 'bg-red-100 border-red-300';
-      case 'reserved': return 'bg-yellow-100 border-yellow-300';
-      case 'cleaning': return 'bg-gray-100 border-gray-300';
-      default: return 'bg-gray-100 border-gray-300';
+      case 'available': return 'bg-green-500';
+      case 'occupied': return 'bg-red-500';
+      case 'reserved': return 'bg-blue-500';
+      case 'cleaning': return 'bg-yellow-500';
+      default: return 'bg-gray-500';
     }
   };
 
-  const getStatusBadge = (status: Table['status']) => {
-    const configs = {
-      available: { label: 'Available', variant: 'default' as const },
-      occupied: { label: 'Occupied', variant: 'destructive' as const },
-      reserved: { label: 'Reserved', variant: 'secondary' as const },
-      cleaning: { label: 'Cleaning', variant: 'outline' as const }
+  const getStatusIcon = (status: Table['status']) => {
+    switch (status) {
+      case 'available': return CheckCircle2;
+      case 'occupied': return Users;
+      case 'reserved': return Calendar;
+      case 'cleaning': return Coffee;
+      default: return AlertCircle;
+    }
+  };
+
+  const handleReservation = () => {
+    if (!selectedTable || !reservationForm.customerName || !reservationForm.reservationTime) {
+      toast.error("Please fill all required fields");
+      return;
+    }
+
+    const newReservation: Reservation = {
+      id: Date.now().toString(),
+      tableNumber: selectedTable,
+      customerName: reservationForm.customerName,
+      customerPhone: reservationForm.customerPhone,
+      partySize: reservationForm.partySize,
+      reservationTime: new Date(reservationForm.reservationTime),
+      notes: reservationForm.notes
     };
+
+    setReservations(prev => [...prev, newReservation]);
+    updateTableStatus(tables.find(t => t.number === selectedTable)?.id || 0, 'reserved');
     
-    return (
-      <Badge variant={configs[status].variant}>
-        {configs[status].label}
-      </Badge>
-    );
+    setTables(prev => prev.map(table => 
+      table.number === selectedTable 
+        ? { ...table, reservedBy: reservationForm.customerName, reservedTime: new Date(reservationForm.reservationTime) }
+        : table
+    ));
+
+    setReservationForm({
+      customerName: '',
+      customerPhone: '',
+      partySize: 1,
+      reservationTime: '',
+      notes: ''
+    });
+    
+    setShowReservationDialog(false);
+    setSelectedTable(null);
+    toast.success("Reservation created successfully!");
   };
 
-  const getOccupiedDuration = (occupiedSince?: Date) => {
-    if (!occupiedSince) return null;
-    const minutes = Math.floor((Date.now() - occupiedSince.getTime()) / 60000);
-    return `${minutes} min`;
+  const cancelReservation = (reservationId: string) => {
+    const reservation = reservations.find(r => r.id === reservationId);
+    if (reservation) {
+      updateTableStatus(tables.find(t => t.number === reservation.tableNumber)?.id || 0, 'available');
+      setReservations(prev => prev.filter(r => r.id !== reservationId));
+      toast.success("Reservation cancelled");
+    }
   };
-
-  const availableTables = tables.filter(t => t.status === 'available').length;
-  const occupiedTables = tables.filter(t => t.status === 'occupied').length;
-  const reservedTables = tables.filter(t => t.status === 'reserved').length;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
+      {/* Enhanced Header */}
+      <header className="glass-effect border-b-0 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => navigate('/')}
-                className="mr-4"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
-              </Button>
-              <h1 className="text-xl font-semibold text-gray-900">Table Management</h1>
+            <div className="flex items-center animate-fade-in">
+              <div className="p-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500">
+                <Users className="h-8 w-8 text-white" />
+              </div>
+              <div className="ml-3">
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  Table Management
+                </h1>
+                <p className="text-xs text-gray-600">Real-time Table Status & Reservations</p>
+              </div>
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-4 text-sm">
-                <span className="text-green-600">Available: {availableTables}</span>
-                <span className="text-red-600">Occupied: {occupiedTables}</span>
-                <span className="text-yellow-600">Reserved: {reservedTables}</span>
+            <div className="flex items-center space-x-4 animate-fade-in">
+              <div className="flex items-center space-x-4 text-sm text-gray-600">
+                <div className="flex items-center space-x-1">
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                  <span>{tables.filter(t => t.status === 'available').length} Available</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                  <span>{tables.filter(t => t.status === 'occupied').length} Occupied</span>
+                </div>
               </div>
             </div>
           </div>
@@ -137,214 +185,272 @@ const TableManagement = () => {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Total Tables</p>
-                  <p className="text-2xl font-bold">{tables.length}</p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Table Layout */}
+          <div className="lg:col-span-2">
+            <Card className="glass-effect animate-fade-in-up">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <div className="p-2 rounded-lg bg-gradient-to-r from-blue-500 to-purple-500">
+                    <Users className="h-5 w-5 text-white" />
+                  </div>
+                  Restaurant Floor Plan
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {tables.map((table) => {
+                    const StatusIcon = getStatusIcon(table.status);
+                    
+                    return (
+                      <Card 
+                        key={table.id} 
+                        className={`hover-lift cursor-pointer transition-all duration-300 border-2 ${
+                          table.status === 'available' ? 'hover:border-green-300' : ''
+                        }`}
+                      >
+                        <CardContent className="p-4 text-center">
+                          <div className={`w-16 h-16 rounded-full ${getStatusColor(table.status)} mx-auto mb-3 flex items-center justify-center`}>
+                            <StatusIcon className="h-8 w-8 text-white" />
+                          </div>
+                          <h3 className="font-semibold text-lg mb-1">Table {table.number}</h3>
+                          <p className="text-sm text-gray-600 mb-2">Seats {table.capacity}</p>
+                          <Badge 
+                            variant="secondary" 
+                            className={`${getStatusColor(table.status)} text-white capitalize`}
+                          >
+                            {table.status}
+                          </Badge>
+                          
+                          {table.currentOrder && (
+                            <p className="text-xs text-gray-600 mt-2">Order: {table.currentOrder}</p>
+                          )}
+                          
+                          {table.reservedBy && (
+                            <p className="text-xs text-gray-600 mt-2">Reserved: {table.reservedBy}</p>
+                          )}
+                          
+                          <div className="flex gap-1 mt-3">
+                            {table.status === 'available' && (
+                              <>
+                                <Button 
+                                  size="sm" 
+                                  onClick={() => updateTableStatus(table.id, 'occupied')}
+                                  className="flex-1 bg-red-500 hover:bg-red-600"
+                                >
+                                  Occupy
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => {
+                                    setSelectedTable(table.number);
+                                    setShowReservationDialog(true);
+                                  }}
+                                  className="flex-1"
+                                >
+                                  Reserve
+                                </Button>
+                              </>
+                            )}
+                            
+                            {table.status === 'occupied' && (
+                              <>
+                                <Button 
+                                  size="sm" 
+                                  onClick={() => updateTableStatus(table.id, 'available')}
+                                  className="flex-1 bg-green-500 hover:bg-green-600"
+                                >
+                                  Free
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => updateTableStatus(table.id, 'cleaning')}
+                                  className="flex-1"
+                                >
+                                  Clean
+                                </Button>
+                              </>
+                            )}
+                            
+                            {table.status === 'cleaning' && (
+                              <Button 
+                                size="sm" 
+                                onClick={() => updateTableStatus(table.id, 'available')}
+                                className="w-full bg-green-500 hover:bg-green-600"
+                              >
+                                Ready
+                              </Button>
+                            )}
+                            
+                            {table.status === 'reserved' && (
+                              <Button 
+                                size="sm" 
+                                onClick={() => updateTableStatus(table.id, 'occupied')}
+                                className="w-full bg-blue-500 hover:bg-blue-600"
+                              >
+                                Seat Guests
+                              </Button>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
-                <Users className="h-8 w-8 text-gray-400" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Available</p>
-                  <p className="text-2xl font-bold text-green-600">{availableTables}</p>
-                </div>
-                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                  <div className="w-4 h-4 bg-green-500 rounded-full" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Occupied</p>
-                  <p className="text-2xl font-bold text-red-600">{occupiedTables}</p>
-                </div>
-                <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                  <div className="w-4 h-4 bg-red-500 rounded-full" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Reserved</p>
-                  <p className="text-2xl font-bold text-yellow-600">{reservedTables}</p>
-                </div>
-                <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
-                  <div className="w-4 h-4 bg-yellow-500 rounded-full" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          </div>
 
-        {/* Table Layout */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Restaurant Floor Plan</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 md:grid-cols-5 gap-4 p-4">
-              {tables.map(table => (
-                <Dialog key={table.id}>
-                  <DialogTrigger asChild>
-                    <Card 
-                      className={`cursor-pointer transition-all duration-200 ${getTableColor(table.status)}`}
-                      onClick={() => setSelectedTable(table)}
-                    >
-                      <CardContent className="p-4 text-center">
-                        <div className="flex flex-col items-center space-y-2">
-                          <div className="text-lg font-bold">T{table.id}</div>
-                          <div className="flex items-center text-sm text-gray-600">
-                            <Users className="h-4 w-4 mr-1" />
-                            {table.seats}
-                          </div>
-                          {getStatusBadge(table.status)}
-                          {table.status === 'occupied' && table.occupiedSince && (
-                            <div className="flex items-center text-xs text-gray-500">
-                              <Clock className="h-3 w-3 mr-1" />
-                              {getOccupiedDuration(table.occupiedSince)}
-                            </div>
-                          )}
-                          {table.status === 'reserved' && (
-                            <div className="text-xs text-gray-600 text-center">
-                              <div>{table.reservationName}</div>
-                              <div>{table.reservationTime}</div>
-                            </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </DialogTrigger>
-                  
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Table {table.id} - {table.seats} seats</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <span>Current Status:</span>
-                        {getStatusBadge(table.status)}
-                      </div>
-                      
-                      {table.status === 'occupied' && (
-                        <>
-                          <div className="space-y-2">
-                            <p>Order: {table.currentOrder}</p>
-                            <p>Duration: {getOccupiedDuration(table.occupiedSince)}</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button 
-                              onClick={() => updateTableStatus(table.id, 'cleaning')}
-                              variant="outline"
-                              className="flex-1"
-                            >
-                              Mark for Cleaning
-                            </Button>
-                            <Button 
-                              onClick={() => updateTableStatus(table.id, 'available')}
-                              className="flex-1"
-                            >
-                              Make Available
-                            </Button>
-                          </div>
-                        </>
-                      )}
-                      
-                      {table.status === 'available' && (
-                        <>
-                          <div className="space-y-3">
-                            <div>
-                              <Label htmlFor="name">Customer Name</Label>
-                              <Input
-                                id="name"
-                                value={reservationForm.name}
-                                onChange={(e) => setReservationForm({...reservationForm, name: e.target.value})}
-                                placeholder="Enter customer name"
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor="time">Reservation Time</Label>
-                              <Input
-                                id="time"
-                                type="time"
-                                value={reservationForm.time}
-                                onChange={(e) => setReservationForm({...reservationForm, time: e.target.value})}
-                              />
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button 
-                              onClick={() => updateTableStatus(table.id, 'occupied')}
-                              variant="outline"
-                              className="flex-1"
-                            >
-                              Seat Customers
-                            </Button>
-                            <Button 
-                              onClick={() => makeReservation(table.id)}
-                              className="flex-1"
-                              disabled={!reservationForm.name || !reservationForm.time}
-                            >
-                              Make Reservation
-                            </Button>
-                          </div>
-                        </>
-                      )}
-                      
-                      {table.status === 'cleaning' && (
-                        <Button 
-                          onClick={() => updateTableStatus(table.id, 'available')}
-                          className="w-full"
-                        >
-                          Cleaning Complete
-                        </Button>
-                      )}
-                      
-                      {table.status === 'reserved' && (
-                        <>
-                          <div className="space-y-2">
-                            <p>Reserved for: {table.reservationName}</p>
-                            <p>Time: {table.reservationTime}</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button 
-                              onClick={() => updateTableStatus(table.id, 'occupied')}
-                              className="flex-1"
-                            >
-                              Seat Customers
-                            </Button>
-                            <Button 
-                              onClick={() => updateTableStatus(table.id, 'available')}
-                              variant="outline"
-                              className="flex-1"
-                            >
-                              Cancel Reservation
-                            </Button>
-                          </div>
-                        </>
-                      )}
+          {/* Reservations Panel */}
+          <div className="lg:col-span-1">
+            <Card className="glass-effect animate-slide-in-right">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500">
+                      <Calendar className="h-5 w-5 text-white" />
                     </div>
-                  </DialogContent>
-                </Dialog>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                    Reservations
+                  </div>
+                  <Button size="sm" onClick={() => setShowReservationDialog(true)}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {reservations.map((reservation) => (
+                    <Card key={reservation.id} className="p-4 border-l-4 border-l-blue-500">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h4 className="font-semibold">{reservation.customerName}</h4>
+                          <p className="text-sm text-gray-600">Table {reservation.tableNumber}</p>
+                        </div>
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          onClick={() => cancelReservation(reservation.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
+                      <div className="space-y-1 text-sm text-gray-600">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4" />
+                          <span>{reservation.partySize} guests</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4" />
+                          <span>{reservation.reservationTime.toLocaleTimeString()}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4" />
+                          <span>{reservation.reservationTime.toLocaleDateString()}</span>
+                        </div>
+                        {reservation.notes && (
+                          <p className="text-orange-600 text-xs mt-2">Note: {reservation.notes}</p>
+                        )}
+                      </div>
+                    </Card>
+                  ))}
+                  
+                  {reservations.length === 0 && (
+                    <div className="text-center py-8">
+                      <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                      <p className="text-gray-500">No reservations today</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
+
+      {/* Reservation Dialog */}
+      <Dialog open={showReservationDialog} onOpenChange={setShowReservationDialog}>
+        <DialogContent className="glass-effect">
+          <DialogHeader>
+            <DialogTitle>Make Reservation</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="customerName">Customer Name *</Label>
+                <Input
+                  id="customerName"
+                  value={reservationForm.customerName}
+                  onChange={(e) => setReservationForm(prev => ({ ...prev, customerName: e.target.value }))}
+                  placeholder="Enter customer name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="customerPhone">Phone Number</Label>
+                <Input
+                  id="customerPhone"
+                  value={reservationForm.customerPhone}
+                  onChange={(e) => setReservationForm(prev => ({ ...prev, customerPhone: e.target.value }))}
+                  placeholder="+91 9876543210"
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="partySize">Party Size</Label>
+                <Input
+                  id="partySize"
+                  type="number"
+                  min="1"
+                  value={reservationForm.partySize}
+                  onChange={(e) => setReservationForm(prev => ({ ...prev, partySize: parseInt(e.target.value) }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="tableNumber">Table Number</Label>
+                <Input
+                  id="tableNumber"
+                  type="number"
+                  value={selectedTable || ''}
+                  onChange={(e) => setSelectedTable(parseInt(e.target.value))}
+                  placeholder="Select table"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <Label htmlFor="reservationTime">Reservation Time *</Label>
+              <Input
+                id="reservationTime"
+                type="datetime-local"
+                value={reservationForm.reservationTime}
+                onChange={(e) => setReservationForm(prev => ({ ...prev, reservationTime: e.target.value }))}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="notes">Special Notes</Label>
+              <Input
+                id="notes"
+                value={reservationForm.notes}
+                onChange={(e) => setReservationForm(prev => ({ ...prev, notes: e.target.value }))}
+                placeholder="Anniversary, birthday, dietary requirements..."
+              />
+            </div>
+            
+            <div className="flex gap-2">
+              <Button onClick={handleReservation} className="flex-1">
+                Create Reservation
+              </Button>
+              <Button variant="outline" onClick={() => setShowReservationDialog(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

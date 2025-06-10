@@ -11,7 +11,8 @@ import {
   Settings,
   TrendingUp,
   Clock,
-  Star
+  Star,
+  CheckCircle
 } from "lucide-react";
 
 const Index = () => {

@@ -1,16 +1,28 @@
 
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, Plus, Search, Edit, Trash } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
+import { 
+  Plus, 
+  Edit3, 
+  Trash2, 
+  Search,
+  Filter,
+  ChefHat,
+  Star,
+  DollarSign,
+  Eye,
+  EyeOff
+} from "lucide-react";
 
 interface MenuItem {
   id: string;
@@ -19,81 +31,84 @@ interface MenuItem {
   price: number;
   category: string;
   available: boolean;
-  preparationTime: number; // in minutes
-  tags: string[];
+  image?: string;
+  dietary: string[];
+  preparationTime: number;
+  ingredients: string[];
+  popularity: number;
 }
 
 const MenuManagement = () => {
-  const navigate = useNavigate();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([
     {
       id: '1',
       name: 'Margherita Pizza',
-      description: 'Fresh tomatoes, mozzarella cheese, basil leaves on crispy thin crust',
+      description: 'Fresh tomatoes, mozzarella, basil on crispy crust',
       price: 299,
       category: 'Main Course',
       available: true,
+      dietary: ['Vegetarian'],
       preparationTime: 15,
-      tags: ['Vegetarian', 'Popular']
+      ingredients: ['Tomatoes', 'Mozzarella', 'Basil', 'Pizza Dough'],
+      popularity: 95
     },
     {
       id: '2',
       name: 'Chicken Burger',
-      description: 'Grilled chicken breast, lettuce, tomato, mayo in sesame bun',
+      description: 'Grilled chicken with lettuce, tomato, and special sauce',
       price: 249,
       category: 'Main Course',
       available: true,
+      dietary: ['Non-Vegetarian'],
       preparationTime: 12,
-      tags: ['Non-Vegetarian']
+      ingredients: ['Chicken Breast', 'Lettuce', 'Tomato', 'Burger Bun'],
+      popularity: 87
     },
     {
       id: '3',
       name: 'Caesar Salad',
-      description: 'Romaine lettuce, parmesan cheese, croutons with caesar dressing',
+      description: 'Crisp romaine lettuce with parmesan and croutons',
       price: 199,
       category: 'Appetizers',
       available: true,
+      dietary: ['Vegetarian'],
       preparationTime: 8,
-      tags: ['Vegetarian', 'Healthy']
+      ingredients: ['Romaine Lettuce', 'Parmesan', 'Croutons', 'Caesar Dressing'],
+      popularity: 72
     },
     {
       id: '4',
-      name: 'Coca Cola',
-      description: 'Chilled coca cola - 330ml can',
-      price: 49,
+      name: 'Masala Chai',
+      description: 'Traditional Indian spiced tea',
+      price: 25,
       category: 'Beverages',
-      available: true,
-      preparationTime: 1,
-      tags: ['Cold Drink']
-    },
-    {
-      id: '5',
-      name: 'Chocolate Cake',
-      description: 'Rich chocolate cake with chocolate frosting and chocolate chips',
-      price: 149,
-      category: 'Desserts',
       available: false,
+      dietary: ['Vegetarian', 'Vegan'],
       preparationTime: 5,
-      tags: ['Vegetarian', 'Sweet']
+      ingredients: ['Tea Leaves', 'Milk', 'Spices', 'Sugar'],
+      popularity: 89
     }
   ]);
 
+  const [categories] = useState(['Appetizers', 'Main Course', 'Beverages', 'Desserts']);
+  const [dietaryOptions] = useState(['Vegetarian', 'Vegan', 'Non-Vegetarian', 'Gluten-Free', 'Spicy']);
+  
+  const [showItemDialog, setShowItemDialog] = useState(false);
+  const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
-  const [isCreateMode, setIsCreateMode] = useState(false);
-  const [formData, setFormData] = useState<Partial<MenuItem>>({
+  
+  const [itemForm, setItemForm] = useState({
     name: '',
     description: '',
     price: 0,
-    category: 'Main Course',
+    category: '',
     available: true,
-    preparationTime: 10,
-    tags: []
+    dietary: [] as string[],
+    preparationTime: 0,
+    ingredients: [] as string[],
+    ingredientInput: ''
   });
-
-  const categories = ['Main Course', 'Appetizers', 'Beverages', 'Desserts'];
-  const availableTags = ['Vegetarian', 'Non-Vegetarian', 'Vegan', 'Spicy', 'Popular', 'Healthy', 'Cold Drink', 'Sweet'];
 
   const filteredItems = menuItems.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -102,223 +117,144 @@ const MenuManagement = () => {
     return matchesSearch && matchesCategory;
   });
 
+  const resetForm = () => {
+    setItemForm({
+      name: '',
+      description: '',
+      price: 0,
+      category: '',
+      available: true,
+      dietary: [],
+      preparationTime: 0,
+      ingredients: [],
+      ingredientInput: ''
+    });
+    setEditingItem(null);
+  };
+
+  const openEditDialog = (item: MenuItem) => {
+    setEditingItem(item);
+    setItemForm({
+      name: item.name,
+      description: item.description,
+      price: item.price,
+      category: item.category,
+      available: item.available,
+      dietary: item.dietary,
+      preparationTime: item.preparationTime,
+      ingredients: item.ingredients,
+      ingredientInput: ''
+    });
+    setShowItemDialog(true);
+  };
+
   const handleSaveItem = () => {
-    if (isCreateMode) {
-      const newItem: MenuItem = {
-        ...formData as MenuItem,
-        id: Date.now().toString()
-      };
-      setMenuItems(prev => [...prev, newItem]);
-    } else if (editingItem) {
-      setMenuItems(prev => 
-        prev.map(item => 
-          item.id === editingItem.id ? { ...formData as MenuItem, id: editingItem.id } : item
-        )
-      );
+    if (!itemForm.name || !itemForm.category || itemForm.price <= 0) {
+      toast.error("Please fill all required fields");
+      return;
     }
+
+    const newItem: MenuItem = {
+      id: editingItem?.id || Date.now().toString(),
+      name: itemForm.name,
+      description: itemForm.description,
+      price: itemForm.price,
+      category: itemForm.category,
+      available: itemForm.available,
+      dietary: itemForm.dietary,
+      preparationTime: itemForm.preparationTime,
+      ingredients: itemForm.ingredients,
+      popularity: editingItem?.popularity || 0
+    };
+
+    if (editingItem) {
+      setMenuItems(prev => prev.map(item => item.id === editingItem.id ? newItem : item));
+      toast.success("Menu item updated successfully");
+    } else {
+      setMenuItems(prev => [...prev, newItem]);
+      toast.success("Menu item added successfully");
+    }
+
+    setShowItemDialog(false);
     resetForm();
   };
 
-  const handleEditItem = (item: MenuItem) => {
-    setEditingItem(item);
-    setFormData(item);
-    setIsCreateMode(false);
-  };
-
-  const handleCreateNew = () => {
-    setIsCreateMode(true);
-    setEditingItem(null);
-    setFormData({
-      name: '',
-      description: '',
-      price: 0,
-      category: 'Main Course',
-      available: true,
-      preparationTime: 10,
-      tags: []
-    });
-  };
-
-  const handleDeleteItem = (id: string) => {
+  const deleteItem = (id: string) => {
     setMenuItems(prev => prev.filter(item => item.id !== id));
+    toast.success("Menu item deleted");
   };
 
-  const toggleItemAvailability = (id: string) => {
-    setMenuItems(prev => 
-      prev.map(item => 
-        item.id === id ? { ...item, available: !item.available } : item
-      )
-    );
+  const toggleAvailability = (id: string) => {
+    setMenuItems(prev => prev.map(item => 
+      item.id === id ? { ...item, available: !item.available } : item
+    ));
+    const item = menuItems.find(i => i.id === id);
+    toast.success(`${item?.name} marked as ${item?.available ? 'unavailable' : 'available'}`);
   };
 
-  const resetForm = () => {
-    setEditingItem(null);
-    setIsCreateMode(false);
-    setFormData({
-      name: '',
-      description: '',
-      price: 0,
-      category: 'Main Course',
-      available: true,
-      preparationTime: 10,
-      tags: []
-    });
+  const addIngredient = () => {
+    if (itemForm.ingredientInput.trim()) {
+      setItemForm(prev => ({
+        ...prev,
+        ingredients: [...prev.ingredients, prev.ingredientInput.trim()],
+        ingredientInput: ''
+      }));
+    }
   };
 
-  const handleTagToggle = (tag: string) => {
-    setFormData(prev => ({
+  const removeIngredient = (index: number) => {
+    setItemForm(prev => ({
       ...prev,
-      tags: prev.tags?.includes(tag) 
-        ? prev.tags.filter(t => t !== tag)
-        : [...(prev.tags || []), tag]
+      ingredients: prev.ingredients.filter((_, i) => i !== index)
     }));
   };
 
+  const toggleDietary = (option: string) => {
+    setItemForm(prev => ({
+      ...prev,
+      dietary: prev.dietary.includes(option)
+        ? prev.dietary.filter(d => d !== option)
+        : [...prev.dietary, option]
+    }));
+  };
+
+  const getPopularityColor = (popularity: number) => {
+    if (popularity >= 90) return 'text-green-600';
+    if (popularity >= 70) return 'text-yellow-600';
+    return 'text-red-600';
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
+      {/* Enhanced Header */}
+      <header className="glass-effect border-b-0 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => navigate('/')}
-                className="mr-4"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
-              </Button>
-              <h1 className="text-xl font-semibold text-gray-900">Menu Management</h1>
+            <div className="flex items-center animate-fade-in">
+              <div className="p-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500">
+                <ChefHat className="h-8 w-8 text-white" />
+              </div>
+              <div className="ml-3">
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                  Menu Management
+                </h1>
+                <p className="text-xs text-gray-600">Manage your restaurant menu items</p>
+              </div>
             </div>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button onClick={handleCreateNew} className="bg-orange-500 hover:bg-orange-600">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add New Item
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>
-                    {isCreateMode ? 'Add New Menu Item' : 'Edit Menu Item'}
-                  </DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="name">Item Name</Label>
-                      <Input
-                        id="name"
-                        value={formData.name}
-                        onChange={(e) => setFormData({...formData, name: e.target.value})}
-                        placeholder="Enter item name"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="price">Price (₹)</Label>
-                      <Input
-                        id="price"
-                        type="number"
-                        value={formData.price}
-                        onChange={(e) => setFormData({...formData, price: Number(e.target.value)})}
-                        placeholder="0"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea
-                      id="description"
-                      value={formData.description}
-                      onChange={(e) => setFormData({...formData, description: e.target.value})}
-                      placeholder="Enter item description"
-                      rows={3}
-                    />
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="category">Category</Label>
-                      <Select 
-                        value={formData.category} 
-                        onValueChange={(value) => setFormData({...formData, category: value})}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories.map(category => (
-                            <SelectItem key={category} value={category}>
-                              {category}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="prepTime">Preparation Time (minutes)</Label>
-                      <Input
-                        id="prepTime"
-                        type="number"
-                        value={formData.preparationTime}
-                        onChange={(e) => setFormData({...formData, preparationTime: Number(e.target.value)})}
-                        placeholder="10"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label>Tags</Label>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {availableTags.map(tag => (
-                        <Button
-                          key={tag}
-                          type="button"
-                          variant={formData.tags?.includes(tag) ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => handleTagToggle(tag)}
-                        >
-                          {tag}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="available"
-                      checked={formData.available}
-                      onCheckedChange={(checked) => setFormData({...formData, available: checked})}
-                    />
-                    <Label htmlFor="available">Available for ordering</Label>
-                  </div>
-                  
-                  <div className="flex gap-2 pt-4">
-                    <Button onClick={resetForm} variant="outline" className="flex-1">
-                      Cancel
-                    </Button>
-                    <Button 
-                      onClick={handleSaveItem} 
-                      className="flex-1 bg-orange-500 hover:bg-orange-600"
-                      disabled={!formData.name || !formData.description || formData.price === 0}
-                    >
-                      {isCreateMode ? 'Create Item' : 'Save Changes'}
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <div className="flex items-center space-x-4 animate-fade-in">
+              <Button onClick={() => setShowItemDialog(true)} className="bg-gradient-to-r from-purple-500 to-pink-500">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Item
+              </Button>
+            </div>
           </div>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Filters */}
-        <Card className="mb-6">
-          <CardContent className="pt-6">
+        {/* Search and Filter */}
+        <Card className="glass-effect mb-6 animate-fade-in-up">
+          <CardContent className="p-6">
             <div className="flex flex-col md:flex-row gap-4">
               <div className="flex-1">
                 <div className="relative">
@@ -331,205 +267,248 @@ const MenuManagement = () => {
                   />
                 </div>
               </div>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="All Categories" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {categories.map(category => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="md:w-48">
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {categories.map(category => (
+                      <SelectItem key={category} value={category}>{category}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Menu Items */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredItems.map(item => (
-            <Card key={item.id} className={`${item.available ? '' : 'opacity-60 bg-gray-50'}`}>
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg mb-2">{item.name}</CardTitle>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Badge variant="outline">{item.category}</Badge>
-                      <Badge variant={item.available ? "default" : "secondary"}>
-                        {item.available ? 'Available' : 'Unavailable'}
-                      </Badge>
+        {/* Menu Items Grid */}
+        <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="w-full">
+          <TabsList className="glass-effect mb-6">
+            <TabsTrigger value="all">All Items ({menuItems.length})</TabsTrigger>
+            {categories.map(category => (
+              <TabsTrigger key={category} value={category}>
+                {category} ({menuItems.filter(item => item.category === category).length})
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredItems.map((item) => (
+              <Card key={item.id} className="glass-effect hover-lift hover-glow animate-scale-in">
+                <CardHeader className="pb-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <CardTitle className="text-lg mb-2">{item.name}</CardTitle>
+                      <p className="text-gray-600 text-sm mb-3">{item.description}</p>
+                      <div className="flex items-center space-x-2 mb-2">
+                        <DollarSign className="h-4 w-4 text-green-600" />
+                        <span className="font-bold text-lg text-green-600">₹{item.price}</span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-orange-600">₹{item.price}</p>
-                    <p className="text-sm text-gray-500">{item.preparationTime} min</p>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600 text-sm mb-3">{item.description}</p>
-                
-                {item.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mb-4">
-                    {item.tags.map(tag => (
-                      <Badge key={tag} variant="outline" className="text-xs">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-                
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => toggleItemAvailability(item.id)}
-                    className="flex-1"
-                  >
-                    {item.available ? 'Mark Unavailable' : 'Mark Available'}
-                  </Button>
-                  
-                  <Dialog>
-                    <DialogTrigger asChild>
+                    <div className="flex flex-col items-end space-y-2">
                       <Button
                         size="sm"
-                        variant="outline"
-                        onClick={() => handleEditItem(item)}
+                        variant="ghost"
+                        onClick={() => toggleAvailability(item.id)}
+                        className={`p-2 ${item.available ? 'text-green-600' : 'text-red-600'}`}
                       >
-                        <Edit className="h-4 w-4" />
+                        {item.available ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                       </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
-                      <DialogHeader>
-                        <DialogTitle>Edit Menu Item</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label htmlFor="name">Item Name</Label>
-                            <Input
-                              id="name"
-                              value={formData.name}
-                              onChange={(e) => setFormData({...formData, name: e.target.value})}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="price">Price (₹)</Label>
-                            <Input
-                              id="price"
-                              type="number"
-                              value={formData.price}
-                              onChange={(e) => setFormData({...formData, price: Number(e.target.value)})}
-                            />
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor="description">Description</Label>
-                          <Textarea
-                            id="description"
-                            value={formData.description}
-                            onChange={(e) => setFormData({...formData, description: e.target.value})}
-                            rows={3}
-                          />
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label>Category</Label>
-                            <Select 
-                              value={formData.category} 
-                              onValueChange={(value) => setFormData({...formData, category: value})}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {categories.map(category => (
-                                  <SelectItem key={category} value={category}>
-                                    {category}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label htmlFor="prepTime">Preparation Time (minutes)</Label>
-                            <Input
-                              id="prepTime"
-                              type="number"
-                              value={formData.preparationTime}
-                              onChange={(e) => setFormData({...formData, preparationTime: Number(e.target.value)})}
-                            />
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <Label>Tags</Label>
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {availableTags.map(tag => (
-                              <Button
-                                key={tag}
-                                type="button"
-                                variant={formData.tags?.includes(tag) ? "default" : "outline"}
-                                size="sm"
-                                onClick={() => handleTagToggle(tag)}
-                              >
-                                {tag}
-                              </Button>
-                            ))}
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center space-x-2">
-                          <Switch
-                            id="available"
-                            checked={formData.available}
-                            onCheckedChange={(checked) => setFormData({...formData, available: checked})}
-                          />
-                          <Label htmlFor="available">Available for ordering</Label>
-                        </div>
-                        
-                        <div className="flex gap-2 pt-4">
-                          <Button onClick={resetForm} variant="outline" className="flex-1">
-                            Cancel
-                          </Button>
-                          <Button 
-                            onClick={handleSaveItem} 
-                            className="flex-1 bg-orange-500 hover:bg-orange-600"
-                          >
-                            Save Changes
-                          </Button>
-                        </div>
+                      <div className="flex items-center space-x-1">
+                        <Star className={`h-4 w-4 ${getPopularityColor(item.popularity)}`} />
+                        <span className={`text-sm ${getPopularityColor(item.popularity)}`}>
+                          {item.popularity}%
+                        </span>
                       </div>
-                    </DialogContent>
-                  </Dialog>
-                  
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleDeleteItem(item.id)}
-                    className="text-red-600 hover:text-red-700"
-                  >
-                    <Trash className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Prep Time:</span>
+                      <span className="font-medium">{item.preparationTime} min</span>
+                    </div>
+                    
+                    <div>
+                      <Badge variant="outline" className="mb-2">
+                        {item.category}
+                      </Badge>
+                      <div className="flex flex-wrap gap-1">
+                        {item.dietary.map(diet => (
+                          <Badge key={diet} variant="secondary" className="text-xs">
+                            {diet}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <Badge 
+                      variant={item.available ? "default" : "secondary"}
+                      className={item.available ? "bg-green-500" : "bg-red-500"}
+                    >
+                      {item.available ? "Available" : "Unavailable"}
+                    </Badge>
+                    
+                    <div className="flex gap-2 pt-2">
+                      <Button 
+                        size="sm" 
+                        onClick={() => openEditDialog(item)}
+                        className="flex-1"
+                      >
+                        <Edit3 className="h-4 w-4 mr-2" />
+                        Edit
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="destructive"
+                        onClick={() => deleteItem(item.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </Tabs>
 
         {filteredItems.length === 0 && (
-          <Card className="text-center py-12">
-            <CardContent>
-              <p className="text-gray-500">No menu items found matching your criteria.</p>
-            </CardContent>
-          </Card>
+          <div className="text-center py-12">
+            <ChefHat className="h-24 w-24 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-600 mb-2">No items found</h3>
+            <p className="text-gray-500">Try adjusting your search or filters</p>
+          </div>
         )}
       </div>
+
+      {/* Add/Edit Item Dialog */}
+      <Dialog open={showItemDialog} onOpenChange={setShowItemDialog}>
+        <DialogContent className="glass-effect max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingItem ? 'Edit Menu Item' : 'Add New Menu Item'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="name">Item Name *</Label>
+                <Input
+                  id="name"
+                  value={itemForm.name}
+                  onChange={(e) => setItemForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Enter item name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="price">Price (₹) *</Label>
+                <Input
+                  id="price"
+                  type="number"
+                  min="0"
+                  value={itemForm.price}
+                  onChange={(e) => setItemForm(prev => ({ ...prev, price: Number(e.target.value) }))}
+                  placeholder="0"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={itemForm.description}
+                onChange={(e) => setItemForm(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Describe your dish..."
+                rows={3}
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="category">Category *</Label>
+                <Select value={itemForm.category} onValueChange={(value) => setItemForm(prev => ({ ...prev, category: value }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map(category => (
+                      <SelectItem key={category} value={category}>{category}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="prepTime">Preparation Time (minutes)</Label>
+                <Input
+                  id="prepTime"
+                  type="number"
+                  min="0"
+                  value={itemForm.preparationTime}
+                  onChange={(e) => setItemForm(prev => ({ ...prev, preparationTime: Number(e.target.value) }))}
+                />
+              </div>
+            </div>
+            
+            <div>
+              <Label className="mb-3 block">Dietary Options</Label>
+              <div className="flex flex-wrap gap-2">
+                {dietaryOptions.map(option => (
+                  <Button
+                    key={option}
+                    type="button"
+                    size="sm"
+                    variant={itemForm.dietary.includes(option) ? "default" : "outline"}
+                    onClick={() => toggleDietary(option)}
+                  >
+                    {option}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            
+            <div>
+              <Label className="mb-3 block">Ingredients</Label>
+              <div className="flex gap-2 mb-3">
+                <Input
+                  value={itemForm.ingredientInput}
+                  onChange={(e) => setItemForm(prev => ({ ...prev, ingredientInput: e.target.value }))}
+                  placeholder="Add ingredient"
+                  onKeyPress={(e) => e.key === 'Enter' && addIngredient()}
+                />
+                <Button type="button" onClick={addIngredient}>Add</Button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {itemForm.ingredients.map((ingredient, index) => (
+                  <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeIngredient(index)}>
+                    {ingredient} ×
+                  </Badge>
+                ))}
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Switch
+                checked={itemForm.available}
+                onCheckedChange={(checked) => setItemForm(prev => ({ ...prev, available: checked }))}
+              />
+              <Label>Available for ordering</Label>
+            </div>
+            
+            <div className="flex gap-2">
+              <Button onClick={handleSaveItem} className="flex-1">
+                {editingItem ? 'Update Item' : 'Add Item'}
+              </Button>
+              <Button variant="outline" onClick={() => { setShowItemDialog(false); resetForm(); }}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -1,259 +1,264 @@
 
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Clock, CheckCircle, AlertCircle } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
+import { 
+  ChefHat, 
+  Clock, 
+  CheckCircle2, 
+  AlertCircle, 
+  Timer,
+  Users,
+  Car,
+  Store,
+  Bell
+} from "lucide-react";
 
-interface Order {
+interface KitchenOrder {
   id: string;
   tokenNumber: string;
-  type: 'dine-in' | 'takeout' | 'delivery';
+  orderType: 'dine-in' | 'takeout' | 'delivery';
   tableNumber?: number;
   items: Array<{
+    id: string;
     name: string;
     quantity: number;
     notes?: string;
+    status: 'pending' | 'preparing' | 'ready';
   }>;
   status: 'pending' | 'preparing' | 'ready' | 'completed';
   timeOrdered: Date;
-  estimatedTime: number; // minutes
+  estimatedTime: number;
+  priority: 'normal' | 'high' | 'urgent';
 }
 
 const KitchenDisplay = () => {
-  const navigate = useNavigate();
-  const [orders, setOrders] = useState<Order[]>([
+  const [orders, setOrders] = useState<KitchenOrder[]>([
     {
       id: '1',
       tokenNumber: 'D-001',
-      type: 'dine-in',
+      orderType: 'dine-in',
       tableNumber: 5,
       items: [
-        { name: 'Margherita Pizza', quantity: 1 },
-        { name: 'Caesar Salad', quantity: 2, notes: 'No croutons' }
+        { id: '1', name: 'Margherita Pizza', quantity: 2, status: 'pending' },
+        { id: '2', name: 'Caesar Salad', quantity: 1, notes: 'No croutons', status: 'pending' }
       ],
       status: 'pending',
-      timeOrdered: new Date(Date.now() - 5 * 60000), // 5 minutes ago
-      estimatedTime: 15
+      timeOrdered: new Date(Date.now() - 300000), // 5 mins ago
+      estimatedTime: 15,
+      priority: 'normal'
     },
     {
       id: '2',
-      tokenNumber: 'T-001',
-      type: 'takeout',
+      tokenNumber: 'T-018',
+      orderType: 'takeout',
       items: [
-        { name: 'Chicken Burger', quantity: 2 },
-        { name: 'Coca Cola', quantity: 2 }
+        { id: '3', name: 'Chicken Burger', quantity: 1, status: 'preparing' },
+        { id: '4', name: 'Coca Cola', quantity: 2, status: 'ready' }
       ],
       status: 'preparing',
-      timeOrdered: new Date(Date.now() - 8 * 60000), // 8 minutes ago
-      estimatedTime: 10
-    },
-    {
-      id: '3',
-      tokenNumber: 'DEL-001',
-      type: 'delivery',
-      items: [
-        { name: 'Chocolate Cake', quantity: 1 },
-        { name: 'Margherita Pizza', quantity: 1 }
-      ],
-      status: 'ready',
-      timeOrdered: new Date(Date.now() - 12 * 60000), // 12 minutes ago
-      estimatedTime: 20
+      timeOrdered: new Date(Date.now() - 600000), // 10 mins ago
+      estimatedTime: 12,
+      priority: 'high'
     }
   ]);
 
-  const updateOrderStatus = (orderId: string, newStatus: Order['status']) => {
-    setOrders(prev => 
-      prev.map(order => 
-        order.id === orderId ? { ...order, status: newStatus } : order
-      )
-    );
-  };
+  const [selectedFilter, setSelectedFilter] = useState<'all' | 'dine-in' | 'takeout' | 'delivery'>('all');
 
-  const getElapsedTime = (timeOrdered: Date) => {
-    const elapsed = Math.floor((Date.now() - timeOrdered.getTime()) / 60000);
-    return elapsed;
-  };
-
-  const getStatusColor = (status: Order['status'], elapsedTime: number, estimatedTime: number) => {
-    if (status === 'completed') return 'bg-gray-100 border-gray-300';
-    if (status === 'ready') return 'bg-blue-50 border-blue-300';
-    if (elapsedTime > estimatedTime) return 'bg-red-50 border-red-300';
-    if (elapsedTime > estimatedTime * 0.8) return 'bg-yellow-50 border-yellow-300';
-    return 'bg-green-50 border-green-300';
-  };
-
-  const getStatusBadge = (status: Order['status']) => {
-    const configs = {
-      pending: { label: 'Pending', variant: 'destructive' as const, icon: AlertCircle },
-      preparing: { label: 'Preparing', variant: 'default' as const, icon: Clock },
-      ready: { label: 'Ready', variant: 'secondary' as const, icon: CheckCircle },
-      completed: { label: 'Completed', variant: 'outline' as const, icon: CheckCircle }
-    };
+  const updateItemStatus = (orderId: string, itemId: string, newStatus: 'pending' | 'preparing' | 'ready') => {
+    setOrders(prev => prev.map(order => {
+      if (order.id === orderId) {
+        const updatedItems = order.items.map(item => 
+          item.id === itemId ? { ...item, status: newStatus } : item
+        );
+        
+        // Update order status based on items
+        let orderStatus: 'pending' | 'preparing' | 'ready' | 'completed' = 'pending';
+        if (updatedItems.every(item => item.status === 'ready')) {
+          orderStatus = 'ready';
+        } else if (updatedItems.some(item => item.status === 'preparing')) {
+          orderStatus = 'preparing';
+        }
+        
+        return { ...order, items: updatedItems, status: orderStatus };
+      }
+      return order;
+    }));
     
-    const config = configs[status];
-    const Icon = config.icon;
-    
-    return (
-      <Badge variant={config.variant} className="flex items-center gap-1">
-        <Icon className="h-3 w-3" />
-        {config.label}
-      </Badge>
-    );
+    toast.success(`Item marked as ${newStatus}`);
   };
 
-  const getTypeIcon = (type: Order['type']) => {
-    const colors = {
-      'dine-in': 'bg-blue-500',
-      'takeout': 'bg-green-500',
-      'delivery': 'bg-orange-500'
-    };
-    
-    return (
-      <div className={`w-3 h-3 rounded-full ${colors[type]}`} title={type} />
-    );
+  const completeOrder = (orderId: string) => {
+    setOrders(prev => prev.map(order => 
+      order.id === orderId ? { ...order, status: 'completed' } : order
+    ));
+    toast.success("Order completed!");
   };
 
-  const activeOrders = orders.filter(order => order.status !== 'completed');
-  const completedOrders = orders.filter(order => order.status === 'completed');
+  const getOrderAge = (timeOrdered: Date) => {
+    const minutes = Math.floor((Date.now() - timeOrdered.getTime()) / 60000);
+    return minutes;
+  };
+
+  const getOrderPriorityColor = (priority: string, age: number) => {
+    if (age > 20) return 'border-red-500 bg-red-50';
+    if (age > 15) return 'border-yellow-500 bg-yellow-50';
+    if (priority === 'high') return 'border-orange-500 bg-orange-50';
+    return 'border-green-500 bg-green-50';
+  };
+
+  const filteredOrders = orders.filter(order => {
+    if (selectedFilter === 'all') return order.status !== 'completed';
+    return order.orderType === selectedFilter && order.status !== 'completed';
+  });
+
+  const orderTypeIcons = {
+    'dine-in': Users,
+    'takeout': Store,
+    'delivery': Car
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
+      {/* Enhanced Header */}
+      <header className="glass-effect border-b-0 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => navigate('/')}
-                className="mr-4"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
-              </Button>
-              <h1 className="text-xl font-semibold text-gray-900">Kitchen Display System</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-sm text-gray-600">
-                Active Orders: {activeOrders.length}
+            <div className="flex items-center animate-fade-in">
+              <div className="p-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500">
+                <ChefHat className="h-8 w-8 text-white" />
               </div>
-              <Button variant="outline" size="sm">
-                Refresh
-              </Button>
+              <div className="ml-3">
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                  Kitchen Display
+                </h1>
+                <p className="text-xs text-gray-600">Real-time Order Management</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-4 animate-fade-in">
+              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <Bell className="h-4 w-4" />
+                <span>{filteredOrders.length} Active Orders</span>
+              </div>
+              <div className="text-sm text-gray-600">
+                {new Date().toLocaleTimeString()}
+              </div>
             </div>
           </div>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Active Orders */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Active Orders</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {activeOrders.map(order => {
-              const elapsedTime = getElapsedTime(order.timeOrdered);
-              return (
-                <Card 
-                  key={order.id} 
-                  className={`border-2 ${getStatusColor(order.status, elapsedTime, order.estimatedTime)}`}
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        {getTypeIcon(order.type)}
-                        {order.tokenNumber}
+        {/* Filter Tabs */}
+        <Tabs value={selectedFilter} onValueChange={(value) => setSelectedFilter(value as any)} className="mb-6">
+          <TabsList className="glass-effect">
+            <TabsTrigger value="all">All Orders ({filteredOrders.length})</TabsTrigger>
+            <TabsTrigger value="dine-in">Dine-in</TabsTrigger>
+            <TabsTrigger value="takeout">Takeout</TabsTrigger>
+            <TabsTrigger value="delivery">Delivery</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {/* Orders Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredOrders.map((order) => {
+            const OrderIcon = orderTypeIcons[order.orderType];
+            const age = getOrderAge(order.timeOrdered);
+            
+            return (
+              <Card 
+                key={order.id} 
+                className={`hover-lift animate-scale-in border-2 ${getOrderPriorityColor(order.priority, age)}`}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <div className="p-2 rounded-lg bg-gradient-to-r from-blue-500 to-purple-500">
+                        <OrderIcon className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">{order.tokenNumber}</CardTitle>
                         {order.tableNumber && (
-                          <span className="text-sm text-gray-600">• Table {order.tableNumber}</span>
+                          <p className="text-sm text-gray-600">Table {order.tableNumber}</p>
                         )}
-                      </CardTitle>
-                      {getStatusBadge(order.status)}
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between text-sm text-gray-600">
-                      <span>{elapsedTime} min ago</span>
-                      <span>Est: {order.estimatedTime} min</span>
+                    <Badge 
+                      variant={order.status === 'ready' ? 'default' : 'secondary'}
+                      className={order.status === 'ready' ? 'bg-green-500' : ''}
+                    >
+                      {order.status}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center space-x-4 text-sm text-gray-600">
+                    <div className="flex items-center space-x-1">
+                      <Clock className="h-4 w-4" />
+                      <span>{age} min ago</span>
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 mb-4">
-                      {order.items.map((item, index) => (
-                        <div key={index} className="flex justify-between items-start">
-                          <div>
-                            <span className="font-medium">{item.quantity}x {item.name}</span>
-                            {item.notes && (
-                              <p className="text-xs text-orange-600 mt-1">Note: {item.notes}</p>
-                            )}
+                    <div className="flex items-center space-x-1">
+                      <Timer className="h-4 w-4" />
+                      <span>~{order.estimatedTime} min</span>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {order.items.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between p-3 rounded-xl bg-white/80 backdrop-blur-sm">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-medium">{item.quantity}x</span>
+                            <span>{item.name}</span>
                           </div>
+                          {item.notes && (
+                            <p className="text-sm text-orange-600 mt-1">Note: {item.notes}</p>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      {order.status === 'pending' && (
-                        <Button 
-                          size="sm" 
-                          onClick={() => updateOrderStatus(order.id, 'preparing')}
-                          className="flex-1 bg-orange-500 hover:bg-orange-600"
-                        >
-                          Start Preparing
-                        </Button>
-                      )}
-                      {order.status === 'preparing' && (
-                        <Button 
-                          size="sm" 
-                          onClick={() => updateOrderStatus(order.id, 'ready')}
-                          className="flex-1 bg-blue-500 hover:bg-blue-600"
-                        >
-                          Mark Ready
-                        </Button>
-                      )}
-                      {order.status === 'ready' && (
-                        <Button 
-                          size="sm" 
-                          onClick={() => updateOrderStatus(order.id, 'completed')}
-                          className="flex-1 bg-green-500 hover:bg-green-600"
-                        >
-                          Complete Order
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-          
-          {activeOrders.length === 0 && (
-            <Card className="text-center py-12">
-              <CardContent>
-                <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                <p className="text-gray-600">No active orders. Great job!</p>
-              </CardContent>
-            </Card>
-          )}
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            size="sm"
+                            variant={item.status === 'preparing' ? 'default' : 'outline'}
+                            onClick={() => updateItemStatus(order.id, item.id, 'preparing')}
+                            className="h-8 px-3"
+                          >
+                            <AlertCircle className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={item.status === 'ready' ? 'default' : 'outline'}
+                            onClick={() => updateItemStatus(order.id, item.id, 'ready')}
+                            className={`h-8 px-3 ${item.status === 'ready' ? 'bg-green-500 hover:bg-green-600' : ''}`}
+                          >
+                            <CheckCircle2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {order.status === 'ready' && (
+                    <Button 
+                      onClick={() => completeOrder(order.id)}
+                      className="w-full mt-4 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
+                    >
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Complete Order
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
-        {/* Recently Completed */}
-        {completedOrders.length > 0 && (
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Recently Completed</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {completedOrders.slice(0, 4).map(order => (
-                <Card key={order.id} className="bg-gray-50 border-gray-200">
-                  <CardContent className="pt-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium text-sm">{order.tokenNumber}</span>
-                      <Badge variant="outline">Completed</Badge>
-                    </div>
-                    <p className="text-xs text-gray-600">
-                      {order.items.length} items • {getElapsedTime(order.timeOrdered)} min ago
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+        {filteredOrders.length === 0 && (
+          <div className="text-center py-12">
+            <ChefHat className="h-24 w-24 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-600 mb-2">No Active Orders</h3>
+            <p className="text-gray-500">New orders will appear here automatically</p>
           </div>
         )}
       </div>
