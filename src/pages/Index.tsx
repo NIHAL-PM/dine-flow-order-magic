@@ -1,4 +1,3 @@
-
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +11,9 @@ import {
   TrendingUp,
   Clock,
   Star,
-  CheckCircle
+  CheckCircle,
+  Receipt,
+  Menu
 } from "lucide-react";
 
 const Index = () => {
@@ -50,6 +51,57 @@ const Index = () => {
       path: "/menu",
       color: "gradient-danger",
       delay: "0.4s"
+    }
+  ];
+
+  const quickActions = [
+    {
+      title: "Take Order",
+      description: "Create new orders for customers",
+      icon: ShoppingCart,
+      color: "from-blue-500 to-blue-600",
+      path: "/order-taking",
+      stats: "Active Tables: 4"
+    },
+    {
+      title: "Billing",
+      description: "Process payments and generate bills",
+      icon: Receipt,
+      color: "from-green-500 to-green-600", 
+      path: "/billing",
+      stats: "Pending Bills: 3"
+    },
+    {
+      title: "Kitchen Display",
+      description: "View and manage kitchen orders",
+      icon: ChefHat,
+      color: "from-orange-500 to-orange-600",
+      path: "/kitchen",
+      stats: "Pending Orders: 8"
+    },
+    {
+      title: "Table Management",
+      description: "Manage table bookings and status",
+      icon: Users,
+      color: "from-purple-500 to-purple-600",
+      path: "/tables",
+      stats: "Available: 12/20"
+    },
+    {
+      title: "Menu Management",
+      description: "Update menu items and pricing",
+      icon: Menu,
+      color: "from-pink-500 to-pink-600",
+      path: "/menu",
+      stats: "Active Items: 45"
+    },
+    {
+      title: "Reports",
+      description: "View sales and analytics",
+      icon: BarChart3,
+      color: "from-indigo-500 to-indigo-600",
+      path: "/reports",
+      stats: "Today's Sales: ₹12,450"
     }
   ];
 
