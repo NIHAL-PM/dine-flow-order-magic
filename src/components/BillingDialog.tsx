@@ -21,31 +21,25 @@ import {
   CheckCircle
 } from "lucide-react";
 import { printService, PrintOrder } from "@/services/printService";
-
-interface CartItem {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-}
+import { useOrderContext, OrderItem } from "@/contexts/OrderContext";
 
 interface BillingDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  cart: CartItem[];
-  orderType: 'dine-in' | 'takeout' | 'delivery';
-  tableNumber?: number | null;
-  onOrderComplete: () => void;
+  orderId: string | null;
 }
 
-const BillingDialog = ({ open, onOpenChange, cart, orderType, tableNumber, onOrderComplete }: BillingDialogProps) => {
+const BillingDialog = ({ open, onOpenChange, orderId }: BillingDialogProps) => {
+  const { getOrderById, updateOrderStatus } = useOrderContext();
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'upi'>('cash');
   const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
   const [isProcessing, setIsProcessing] = useState(false);
   const [thermalPrinterAvailable, setThermalPrinterAvailable] = useState(false);
 
-  const subtotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+  const order = orderId ? getOrderById(orderId) : null;
+
+  const subtotal = order?.subtotal || 0;
   const discountAmount = discountType === 'percentage' 
     ? (subtotal * discount) / 100 
     : Math.min(discount, subtotal);
@@ -58,50 +52,67 @@ const BillingDialog = ({ open, onOpenChange, cart, orderType, tableNumber, onOrd
     printService.checkThermalPrinter().then(setThermalPrinterAvailable);
   }, []);
 
-  const generateTokenNumber = () => {
-    const prefix = orderType === 'dine-in' ? 'D' : orderType === 'takeout' ? 'T' : 'DEL';
-    const number = Math.floor(Math.random() * 999) + 1;
-    return `${prefix}-${number.toString().padStart(3, '0')}`;
+  useEffect(() => {
+    // Reset form when dialog opens/closes or order changes
+    if (open && order) {
+      setDiscount(0);
+      setDiscountType('percentage');
+      setPaymentMethod('cash');
+    }
+  }, [open, order]);
+
+  const createPrintOrder = (): PrintOrder => {
+    if (!order) throw new Error('No order selected');
+    
+    return {
+      tokenNumber: order.tokenNumber,
+      orderType: order.orderType,
+      tableNumber: order.tableNumber,
+      items: order.items.map(item => ({
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price,
+        total: item.price * item.quantity
+      })),
+      subtotal,
+      discount: discountAmount,
+      tax,
+      total,
+      paymentMethod,
+      timestamp: new Date(),
+      customerName: order.customerName,
+      waiterName: order.waiterName
+    };
   };
 
-  const createPrintOrder = (tokenNumber: string): PrintOrder => ({
-    tokenNumber,
-    orderType,
-    tableNumber: tableNumber || undefined,
-    items: cart.map(item => ({
-      id: item.id,
-      name: item.name,
-      quantity: item.quantity,
-      price: item.price,
-      total: item.price * item.quantity
-    })),
-    subtotal,
-    discount: discountAmount,
-    tax,
-    total,
-    paymentMethod,
-    timestamp: new Date()
-  });
-
   const handleCompleteOrder = async () => {
-    if (cart.length === 0) {
-      toast.error("Cart is empty");
+    if (!order) {
+      toast.error("No order selected");
       return;
     }
 
     setIsProcessing(true);
     
     try {
-      const tokenNumber = generateTokenNumber();
-      const orderData = createPrintOrder(tokenNumber);
+      const orderData = createPrintOrder();
       
-      console.log('Order completed:', orderData);
+      console.log('Processing payment for order:', orderData);
       
-      // Print KOT (Kitchen Order Ticket) first
-      if (thermalPrinterAvailable) {
-        await printService.printThermal(orderData, 'kot');
-        toast.success("Kitchen order printed successfully");
+      // First, if order is still saved, send it to kitchen
+      if (order.status === 'saved') {
+        updateOrderStatus(order.id, 'confirmed');
+        toast.success("Order sent to kitchen");
+        
+        // Print KOT (Kitchen Order Ticket)
+        if (thermalPrinterAvailable) {
+          await printService.printThermal(orderData, 'kot');
+          toast.success("Kitchen order ticket printed");
+        }
       }
+      
+      // Mark order as completed and print bill
+      updateOrderStatus(order.id, 'completed');
       
       // Print customer bill
       if (thermalPrinterAvailable) {
@@ -113,28 +124,27 @@ const BillingDialog = ({ open, onOpenChange, cart, orderType, tableNumber, onOrd
         toast.success("Bill generated as PDF");
       }
       
-      onOrderComplete();
+      toast.success(`Payment completed for order ${order.tokenNumber}!`);
       onOpenChange(false);
-      toast.success(`Order ${tokenNumber} completed successfully!`);
       
     } catch (error) {
-      console.error('Order completion failed:', error);
-      toast.error("Failed to complete order. Please try again.");
+      console.error('Payment processing failed:', error);
+      toast.error("Failed to complete payment. Please try again.");
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleDownloadPDF = () => {
-    const tokenNumber = generateTokenNumber();
-    const orderData = createPrintOrder(tokenNumber);
+    if (!order) return;
+    const orderData = createPrintOrder();
     printService.downloadPDF(orderData);
     toast.success("Bill downloaded as PDF");
   };
 
   const handlePrintPreview = () => {
-    const tokenNumber = generateTokenNumber();
-    const orderData = createPrintOrder(tokenNumber);
+    if (!order) return;
+    const orderData = createPrintOrder();
     printService.printPDF(orderData);
   };
 
@@ -144,6 +154,10 @@ const BillingDialog = ({ open, onOpenChange, cart, orderType, tableNumber, onOrd
     { id: 'upi', label: 'UPI', icon: Smartphone, color: 'bg-purple-500 hover:bg-purple-600' }
   ];
 
+  if (!order) {
+    return null;
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto glass-effect">
@@ -152,38 +166,80 @@ const BillingDialog = ({ open, onOpenChange, cart, orderType, tableNumber, onOrd
             <div className="p-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500">
               <Receipt className="h-6 w-6 text-white" />
             </div>
-            Order Summary & Payment
+            Bill for {order.tokenNumber}
           </DialogTitle>
           <DialogDescription>
-            Review your order details and complete the payment
+            Process payment for this order
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Column */}
+          {/* Left Column - Order Details */}
           <div className="space-y-6">
-            {/* Order Details */}
             <Card className="glass-effect hover-lift">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-semibold text-lg">Order Details</h3>
                   <Badge variant="outline" className="px-3 py-1">
-                    {orderType.charAt(0).toUpperCase() + orderType.slice(1)}
-                    {tableNumber && ` • Table ${tableNumber}`}
+                    {order.orderType.charAt(0).toUpperCase() + order.orderType.slice(1)}
+                    {order.tableNumber && ` • Table ${order.tableNumber}`}
                   </Badge>
                 </div>
                 
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Order Type:</span>
+                    <span className="capitalize">{order.orderType}</span>
+                  </div>
+                  {order.tableNumber && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Table:</span>
+                      <span>{order.tableNumber}</span>
+                    </div>
+                  )}
+                  {order.waiterName && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Waiter:</span>
+                      <span>{order.waiterName}</span>
+                    </div>
+                  )}
+                  {order.customerName && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Customer:</span>
+                      <span>{order.customerName}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Status:</span>
+                    <Badge className={order.status === 'saved' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}>
+                      {order.status}
+                    </Badge>
+                  </div>
+                </div>
+                
+                <Separator className="my-4" />
+                
                 <div className="space-y-3 max-h-48 overflow-y-auto">
-                  {cart.map(item => (
+                  {order.items.map(item => (
                     <div key={item.id} className="flex justify-between items-center p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
                       <div>
                         <span className="font-medium">{item.name}</span>
                         <span className="text-gray-600 ml-2">×{item.quantity}</span>
+                        {item.notes && (
+                          <p className="text-xs text-orange-600">Note: {item.notes}</p>
+                        )}
                       </div>
                       <span className="font-medium text-orange-600">₹{(item.price * item.quantity).toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
+
+                {order.specialInstructions && (
+                  <div className="mt-4 p-3 rounded-lg bg-yellow-50 border border-yellow-200">
+                    <p className="text-sm font-medium text-yellow-800 mb-1">Special Instructions:</p>
+                    <p className="text-sm text-yellow-700">{order.specialInstructions}</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -289,43 +345,43 @@ const BillingDialog = ({ open, onOpenChange, cart, orderType, tableNumber, onOrd
                 </div>
               </CardContent>
             </Card>
+
+            {/* Print Options */}
+            <Card className="glass-effect">
+              <CardContent className="pt-6">
+                <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                  <Printer className="h-5 w-5" />
+                  Print Options
+                </h3>
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePrintPreview}
+                    className="flex items-center gap-2"
+                  >
+                    <FileText className="h-4 w-4" />
+                    Print Preview
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDownloadPDF}
+                    className="flex items-center gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download PDF
+                  </Button>
+                  {thermalPrinterAvailable && (
+                    <Badge className="bg-green-100 text-green-800 px-3 py-1">
+                      Thermal Printer Connected
+                    </Badge>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
-
-        {/* Print Options */}
-        <Card className="glass-effect">
-          <CardContent className="pt-6">
-            <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-              <Printer className="h-5 w-5" />
-              Print Options
-            </h3>
-            <div className="flex flex-wrap gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePrintPreview}
-                className="flex items-center gap-2"
-              >
-                <FileText className="h-4 w-4" />
-                Print Preview
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDownloadPDF}
-                className="flex items-center gap-2"
-              >
-                <Download className="h-4 w-4" />
-                Download PDF
-              </Button>
-              {thermalPrinterAvailable && (
-                <Badge className="bg-green-100 text-green-800 px-3 py-1">
-                  Thermal Printer Connected
-                </Badge>
-              )}
-            </div>
-          </CardContent>
-        </Card>
 
         <DialogFooter className="flex flex-col sm:flex-row gap-3">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
@@ -333,7 +389,7 @@ const BillingDialog = ({ open, onOpenChange, cart, orderType, tableNumber, onOrd
           </Button>
           <Button 
             onClick={handleCompleteOrder} 
-            disabled={isProcessing || cart.length === 0}
+            disabled={isProcessing}
             className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold py-3 px-6 w-full sm:w-auto"
           >
             {isProcessing ? (
@@ -341,7 +397,7 @@ const BillingDialog = ({ open, onOpenChange, cart, orderType, tableNumber, onOrd
             ) : (
               <>
                 <CheckCircle className="h-5 w-5 mr-2" />
-                Complete Order • ₹{total.toFixed(2)}
+                Complete Payment • ₹{total.toFixed(2)}
               </>
             )}
           </Button>

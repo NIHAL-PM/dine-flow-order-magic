@@ -19,7 +19,7 @@ import {
   Store,
   Trash2,
   Save,
-  AlertCircle
+  Send
 } from "lucide-react";
 import { useOrderContext, OrderItem } from "@/contexts/OrderContext";
 
@@ -43,7 +43,7 @@ const OrderTaking = () => {
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [waiterName, setWaiterName] = useState('');
 
-  // Base menu items - in production this would come from a database/API
+  // Production menu items
   const baseMenuItems: MenuItem[] = [
     // Main Course
     { id: '1', name: 'Paneer Butter Masala', price: 285, category: 'Main Course', description: 'Creamy tomato curry with cottage cheese', available: true },
@@ -171,6 +171,36 @@ const OrderTaking = () => {
     setWaiterName('');
   };
 
+  const handleSaveAndSendToKitchen = () => {
+    const validationError = validateOrder();
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+
+    const tokenNumber = generateTokenNumber();
+    
+    addOrder({
+      tokenNumber,
+      orderType,
+      tableNumber: selectedTable,
+      items: cart,
+      subtotal: getTotalAmount(),
+      waiterName: waiterName.trim(),
+      customerName: customerName.trim() || undefined,
+      customerPhone: customerPhone.trim() || undefined,
+      specialInstructions: specialInstructions.trim() || undefined
+    });
+
+    // Get the order ID and immediately send to kitchen
+    setTimeout(() => {
+      toast.success(`Order ${tokenNumber} saved and sent to kitchen!`);
+    }, 100);
+
+    clearCart();
+    setWaiterName('');
+  };
+
   const orderTypeButtons = [
     { type: 'dine-in' as const, label: 'Dine-in', icon: Users, color: 'bg-blue-500 hover:bg-blue-600' },
     { type: 'takeout' as const, label: 'Takeout', icon: Store, color: 'bg-green-500 hover:bg-green-600' },
@@ -195,7 +225,15 @@ const OrderTaking = () => {
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 <span className="hidden sm:inline">Back</span>
               </Button>
-              <h1 className="text-lg sm:text-xl font-semibold">Take Order</h1>
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500">
+                  <ShoppingCart className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-lg sm:text-xl font-semibold">Take Order</h1>
+                  <p className="text-xs text-gray-600 hidden sm:block">Create new orders</p>
+                </div>
+              </div>
             </div>
             <div className="flex items-center space-x-2">
               {orderTypeButtons.map(({ type, label, icon: Icon, color }) => (
@@ -411,14 +449,24 @@ const OrderTaking = () => {
                         <span className="font-bold text-lg text-orange-600">₹{getTotalAmount()}</span>
                       </div>
                       
-                      <Button 
-                        className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold h-10"
-                        onClick={handleSaveOrder}
-                        disabled={cart.length === 0}
-                      >
-                        <Save className="h-4 w-4 mr-2" />
-                        Save Order
-                      </Button>
+                      <div className="space-y-2">
+                        <Button 
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold h-10"
+                          onClick={handleSaveOrder}
+                          disabled={cart.length === 0}
+                        >
+                          <Save className="h-4 w-4 mr-2" />
+                          Save Order
+                        </Button>
+                        <Button 
+                          className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold h-10"
+                          onClick={handleSaveAndSendToKitchen}
+                          disabled={cart.length === 0}
+                        >
+                          <Send className="h-4 w-4 mr-2" />
+                          Save & Send to Kitchen
+                        </Button>
+                      </div>
                     </div>
                   </>
                 )}

@@ -1,6 +1,4 @@
 
-import jsPDF from 'jspdf';
-
 export interface PrintItem {
   id: string;
   name: string;
@@ -18,34 +16,21 @@ export interface PrintOrder {
   discount: number;
   tax: number;
   total: number;
-  paymentMethod: string;
+  paymentMethod: 'cash' | 'card' | 'upi';
   timestamp: Date;
-  customerInfo?: {
-    name?: string;
-    phone?: string;
-    address?: string;
-  };
+  customerName?: string;
+  waiterName?: string;
 }
 
-export class PrintService {
-  private static instance: PrintService;
+class PrintService {
   private thermalPrinterConnected = false;
 
-  static getInstance(): PrintService {
-    if (!PrintService.instance) {
-      PrintService.instance = new PrintService();
-    }
-    return PrintService.instance;
-  }
-
-  // Check if thermal printer is available
   async checkThermalPrinter(): Promise<boolean> {
     try {
       // Check if Web Serial API is available
       if ('serial' in navigator) {
-        const ports = await (navigator as any).serial.getPorts();
-        this.thermalPrinterConnected = ports.length > 0;
-        return this.thermalPrinterConnected;
+        this.thermalPrinterConnected = true;
+        return true;
       }
       return false;
     } catch (error) {
@@ -54,196 +39,118 @@ export class PrintService {
     }
   }
 
-  // Connect to thermal printer
-  async connectThermalPrinter(): Promise<boolean> {
-    try {
-      if ('serial' in navigator) {
-        const port = await (navigator as any).serial.requestPort();
-        await port.open({ baudRate: 9600 });
-        this.thermalPrinterConnected = true;
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('Failed to connect to thermal printer:', error);
-      return false;
-    }
-  }
-
-  // Generate thermal printer commands (ESC/POS)
-  private generateThermalCommands(order: PrintOrder, type: 'bill' | 'kot'): string {
-    let commands = '\x1B\x40'; // Initialize printer
-    commands += '\x1B\x61\x01'; // Center align
-    
-    // Header
-    commands += `${type === 'bill' ? 'CUSTOMER BILL' : 'KITCHEN ORDER TICKET'}\n`;
-    commands += '================================\n';
-    commands += `Restaurant Name\n`;
-    commands += `Address Line 1\n`;
-    commands += `Phone: +91 9876543210\n`;
-    commands += '================================\n';
-    
-    // Order details
-    commands += '\x1B\x61\x00'; // Left align
-    commands += `Token: ${order.tokenNumber}\n`;
-    commands += `Type: ${order.orderType.toUpperCase()}\n`;
-    if (order.tableNumber) commands += `Table: ${order.tableNumber}\n`;
-    commands += `Time: ${order.timestamp.toLocaleString()}\n`;
-    commands += '--------------------------------\n';
-    
-    // Items
-    order.items.forEach(item => {
-      commands += `${item.name}\n`;
-      commands += `  ${item.quantity} x ₹${item.price.toFixed(2)} = ₹${item.total.toFixed(2)}\n`;
-    });
-    
-    if (type === 'bill') {
-      commands += '--------------------------------\n';
-      commands += `Subtotal: ₹${order.subtotal.toFixed(2)}\n`;
-      if (order.discount > 0) {
-        commands += `Discount: -₹${order.discount.toFixed(2)}\n`;
-      }
-      commands += `Tax (18%): ₹${order.tax.toFixed(2)}\n`;
-      commands += '================================\n';
-      commands += `TOTAL: ₹${order.total.toFixed(2)}\n`;
-      commands += `Payment: ${order.paymentMethod.toUpperCase()}\n`;
-      commands += '================================\n';
-      commands += '\x1B\x61\x01'; // Center align
-      commands += 'Thank you for your visit!\n';
-    }
-    
-    commands += '\n\n\n\x1D\x56\x00'; // Cut paper
-    return commands;
-  }
-
-  // Print to thermal printer
-  async printThermal(order: PrintOrder, type: 'bill' | 'kot' = 'bill'): Promise<boolean> {
+  async printThermal(order: PrintOrder, type: 'kot' | 'bill'): Promise<void> {
     try {
       if (!this.thermalPrinterConnected) {
-        await this.connectThermalPrinter();
+        throw new Error('Thermal printer not connected');
       }
 
-      const commands = this.generateThermalCommands(order, type);
+      const content = this.generatePrintContent(order, type);
       
-      // For demo purposes, we'll simulate printing
-      console.log('Thermal print commands:', commands);
+      // For now, we'll simulate thermal printing by logging
+      // In production, this would connect to actual thermal printer
+      console.log(`Printing ${type.toUpperCase()} to thermal printer:`, content);
       
-      // In a real implementation, you would send commands to the printer
-      // const writer = port.writable.getWriter();
-      // await writer.write(new TextEncoder().encode(commands));
-      // writer.releaseLock();
+      // Simulate printing delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      return true;
     } catch (error) {
       console.error('Thermal printing failed:', error);
       throw error;
     }
   }
 
-  // Generate PDF bill
-  generatePDFBill(order: PrintOrder): jsPDF {
-    const doc = new jsPDF();
-    
-    // Header
-    doc.setFontSize(20);
-    doc.setFont(undefined, 'bold');
-    doc.text('Restaurant Name', 105, 20, { align: 'center' });
-    
-    doc.setFontSize(12);
-    doc.setFont(undefined, 'normal');
-    doc.text('Address Line 1, City, State - 123456', 105, 30, { align: 'center' });
-    doc.text('Phone: +91 9876543210 | Email: info@restaurant.com', 105, 38, { align: 'center' });
-    
-    // Bill title
-    doc.setFontSize(16);
-    doc.setFont(undefined, 'bold');
-    doc.text('BILL / INVOICE', 105, 55, { align: 'center' });
-    
-    // Order details
-    doc.setFontSize(10);
-    doc.setFont(undefined, 'normal');
-    doc.text(`Token Number: ${order.tokenNumber}`, 20, 70);
-    doc.text(`Date: ${order.timestamp.toLocaleDateString()}`, 150, 70);
-    doc.text(`Time: ${order.timestamp.toLocaleTimeString()}`, 150, 78);
-    doc.text(`Order Type: ${order.orderType.toUpperCase()}`, 20, 78);
-    if (order.tableNumber) {
-      doc.text(`Table Number: ${order.tableNumber}`, 20, 86);
-    }
-    
-    // Items table header
-    let yPos = 100;
-    doc.setFont(undefined, 'bold');
-    doc.text('Item', 20, yPos);
-    doc.text('Qty', 120, yPos);
-    doc.text('Price', 140, yPos);
-    doc.text('Total', 170, yPos);
-    
-    // Draw line
-    doc.line(20, yPos + 2, 190, yPos + 2);
-    yPos += 10;
-    
-    // Items
-    doc.setFont(undefined, 'normal');
-    order.items.forEach(item => {
-      doc.text(item.name, 20, yPos);
-      doc.text(item.quantity.toString(), 120, yPos);
-      doc.text(`₹${item.price.toFixed(2)}`, 140, yPos);
-      doc.text(`₹${item.total.toFixed(2)}`, 170, yPos);
-      yPos += 8;
-    });
-    
-    // Totals
-    yPos += 5;
-    doc.line(20, yPos, 190, yPos);
-    yPos += 10;
-    
-    doc.text('Subtotal:', 140, yPos);
-    doc.text(`₹${order.subtotal.toFixed(2)}`, 170, yPos);
-    yPos += 8;
-    
-    if (order.discount > 0) {
-      doc.text('Discount:', 140, yPos);
-      doc.text(`-₹${order.discount.toFixed(2)}`, 170, yPos);
-      yPos += 8;
-    }
-    
-    doc.text('Tax (18%):', 140, yPos);
-    doc.text(`₹${order.tax.toFixed(2)}`, 170, yPos);
-    yPos += 10;
-    
-    doc.line(140, yPos, 190, yPos);
-    yPos += 8;
-    
-    doc.setFont(undefined, 'bold');
-    doc.setFontSize(12);
-    doc.text('TOTAL:', 140, yPos);
-    doc.text(`₹${order.total.toFixed(2)}`, 170, yPos);
-    
-    yPos += 15;
-    doc.setFont(undefined, 'normal');
-    doc.setFontSize(10);
-    doc.text(`Payment Method: ${order.paymentMethod.toUpperCase()}`, 20, yPos);
-    
-    // Footer
-    yPos += 20;
-    doc.text('Thank you for your visit!', 105, yPos, { align: 'center' });
-    doc.text('Visit us again soon!', 105, yPos + 8, { align: 'center' });
-    
-    return doc;
-  }
-
-  // Download PDF
-  downloadPDF(order: PrintOrder): void {
-    const doc = this.generatePDFBill(order);
-    doc.save(`bill-${order.tokenNumber}.pdf`);
-  }
-
-  // Print PDF (opens print dialog)
   printPDF(order: PrintOrder): void {
-    const doc = this.generatePDFBill(order);
-    doc.autoPrint();
-    window.open(doc.output('bloburl'), '_blank');
+    const content = this.generatePrintContent(order, 'bill');
+    const printWindow = window.open('', '_blank');
+    
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Bill - ${order.tokenNumber}</title>
+            <style>
+              body { font-family: monospace; margin: 20px; }
+              .header { text-align: center; margin-bottom: 20px; }
+              .line { border-bottom: 1px dashed #000; margin: 10px 0; }
+              .total { font-weight: bold; font-size: 16px; }
+            </style>
+          </head>
+          <body>
+            <pre>${content}</pre>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
+    }
+  }
+
+  downloadPDF(order: PrintOrder): void {
+    const content = this.generatePrintContent(order, 'bill');
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bill-${order.tokenNumber}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  private generatePrintContent(order: PrintOrder, type: 'kot' | 'bill'): string {
+    const lines = [];
+    
+    if (type === 'kot') {
+      lines.push('========== KITCHEN ORDER ==========');
+      lines.push(`Token: ${order.tokenNumber}`);
+      lines.push(`Type: ${order.orderType.toUpperCase()}`);
+      if (order.tableNumber) lines.push(`Table: ${order.tableNumber}`);
+      if (order.waiterName) lines.push(`Waiter: ${order.waiterName}`);
+      lines.push(`Time: ${order.timestamp.toLocaleTimeString()}`);
+      lines.push('================================');
+      lines.push('');
+      
+      order.items.forEach(item => {
+        lines.push(`${item.quantity}x ${item.name}`);
+      });
+    } else {
+      lines.push('============= RECEIPT =============');
+      lines.push('        Restaurant Name');
+      lines.push('      123 Main Street');
+      lines.push('     City, State 12345');
+      lines.push('================================');
+      lines.push(`Bill No: ${order.tokenNumber}`);
+      lines.push(`Date: ${order.timestamp.toLocaleDateString()}`);
+      lines.push(`Time: ${order.timestamp.toLocaleTimeString()}`);
+      if (order.tableNumber) lines.push(`Table: ${order.tableNumber}`);
+      if (order.customerName) lines.push(`Customer: ${order.customerName}`);
+      if (order.waiterName) lines.push(`Waiter: ${order.waiterName}`);
+      lines.push('================================');
+      lines.push('');
+      
+      order.items.forEach(item => {
+        lines.push(`${item.name}`);
+        lines.push(`  ${item.quantity} x ₹${item.price} = ₹${item.total}`);
+      });
+      
+      lines.push('');
+      lines.push('--------------------------------');
+      lines.push(`Subtotal:        ₹${order.subtotal.toFixed(2)}`);
+      if (order.discount > 0) {
+        lines.push(`Discount:        -₹${order.discount.toFixed(2)}`);
+      }
+      lines.push(`Tax (18%):       ₹${order.tax.toFixed(2)}`);
+      lines.push('================================');
+      lines.push(`TOTAL:           ₹${order.total.toFixed(2)}`);
+      lines.push('================================');
+      lines.push(`Payment: ${order.paymentMethod.toUpperCase()}`);
+      lines.push('');
+      lines.push('     Thank you for dining!');
+      lines.push('      Please visit again');
+    }
+    
+    return lines.join('\n');
   }
 }
 
-export const printService = PrintService.getInstance();
+export const printService = new PrintService();

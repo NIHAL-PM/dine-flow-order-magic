@@ -36,11 +36,6 @@ const KitchenDisplay = () => {
     toast.success(`Order marked as ${newStatus}`);
   };
 
-  const completeOrder = (orderId: string) => {
-    updateOrderStatus(orderId, 'completed');
-    toast.success("Order completed!");
-  };
-
   const getOrderAge = (timeOrdered: Date) => {
     const minutes = Math.floor((currentTime.getTime() - timeOrdered.getTime()) / 60000);
     return minutes;
@@ -221,13 +216,14 @@ const KitchenDisplay = () => {
                       )}
                       
                       {order.status === 'ready' && (
-                        <Button 
-                          onClick={() => completeOrder(order.id)}
-                          className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
-                        >
-                          <CheckCircle2 className="h-4 w-4 mr-2" />
-                          Order Served
-                        </Button>
+                        <div className="w-full">
+                          <Badge className="w-full justify-center py-2 bg-green-100 text-green-800 font-medium">
+                            Ready for Serving
+                          </Badge>
+                          <p className="text-xs text-center text-gray-500 mt-1">
+                            Waiting for billing completion
+                          </p>
+                        </div>
                       )}
                     </div>
                   </CardContent>
