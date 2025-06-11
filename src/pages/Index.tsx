@@ -1,4 +1,3 @@
-
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,13 +11,14 @@ import {
   TrendingUp,
   Clock,
   Star,
-  CheckCircle
+  CheckCircle,
+  Receipt
 } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
 
-  const dashboardCards = [
+  const menuItems = [
     {
       title: "Order Taking",
       description: "Take orders for dine-in, takeout, and delivery",
@@ -50,6 +50,14 @@ const Index = () => {
       path: "/menu",
       color: "gradient-danger",
       delay: "0.4s"
+    },
+    {
+      title: "Billing",
+      description: "Process saved orders and handle payments",
+      icon: Receipt,
+      path: "/billing",
+      color: "from-purple-500 to-indigo-500",
+      bgPattern: "bg-gradient-to-br from-purple-50 to-indigo-50"
     }
   ];
 
@@ -168,7 +176,7 @@ const Index = () => {
 
         {/* Enhanced Main Action Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {dashboardCards.map((card, index) => (
+          {menuItems.map((card, index) => (
             <Card 
               key={index} 
               className="glass-effect hover-lift hover-glow cursor-pointer group animate-fade-in-up overflow-hidden"
