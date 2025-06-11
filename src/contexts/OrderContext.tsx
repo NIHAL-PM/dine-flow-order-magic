@@ -22,14 +22,18 @@ export interface SavedOrder {
   customerName?: string;
   customerPhone?: string;
   specialInstructions?: string;
+  estimatedTime?: number;
+  priority: 'normal' | 'high' | 'urgent';
 }
 
 interface OrderContextType {
   savedOrders: SavedOrder[];
-  addOrder: (order: Omit<SavedOrder, 'id' | 'timestamp' | 'status'>) => void;
+  addOrder: (order: Omit<SavedOrder, 'id' | 'timestamp' | 'status' | 'priority'>) => void;
   updateOrderStatus: (orderId: string, status: SavedOrder['status']) => void;
   getOrdersByStatus: (status: SavedOrder['status']) => SavedOrder[];
   deleteOrder: (orderId: string) => void;
+  getActiveOrders: () => SavedOrder[];
+  getOrderById: (orderId: string) => SavedOrder | undefined;
 }
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
@@ -45,12 +49,14 @@ export const useOrderContext = () => {
 export const OrderProvider = ({ children }: { children: ReactNode }) => {
   const [savedOrders, setSavedOrders] = useState<SavedOrder[]>([]);
 
-  const addOrder = (orderData: Omit<SavedOrder, 'id' | 'timestamp' | 'status'>) => {
+  const addOrder = (orderData: Omit<SavedOrder, 'id' | 'timestamp' | 'status' | 'priority'>) => {
     const newOrder: SavedOrder = {
       ...orderData,
       id: `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       timestamp: new Date(),
-      status: 'saved'
+      status: 'saved',
+      priority: 'normal',
+      estimatedTime: 15 // Default 15 minutes
     };
     setSavedOrders(prev => [...prev, newOrder]);
   };
@@ -67,6 +73,14 @@ export const OrderProvider = ({ children }: { children: ReactNode }) => {
     return savedOrders.filter(order => order.status === status);
   };
 
+  const getActiveOrders = () => {
+    return savedOrders.filter(order => order.status !== 'completed');
+  };
+
+  const getOrderById = (orderId: string) => {
+    return savedOrders.find(order => order.id === orderId);
+  };
+
   const deleteOrder = (orderId: string) => {
     setSavedOrders(prev => prev.filter(order => order.id !== orderId));
   };
@@ -77,7 +91,9 @@ export const OrderProvider = ({ children }: { children: ReactNode }) => {
       addOrder,
       updateOrderStatus,
       getOrdersByStatus,
-      deleteOrder
+      deleteOrder,
+      getActiveOrders,
+      getOrderById
     }}>
       {children}
     </OrderContext.Provider>

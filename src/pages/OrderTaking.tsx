@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -18,8 +19,7 @@ import {
   Store,
   Trash2,
   Save,
-  User,
-  Phone
+  AlertCircle
 } from "lucide-react";
 import { useOrderContext, OrderItem } from "@/contexts/OrderContext";
 
@@ -43,74 +43,38 @@ const OrderTaking = () => {
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [waiterName, setWaiterName] = useState('');
 
-  const menuItems: MenuItem[] = [
-    {
-      id: '1',
-      name: 'Margherita Pizza',
-      price: 299,
-      category: 'Main Course',
-      description: 'Fresh tomatoes, mozzarella, basil',
-      available: true
-    },
-    {
-      id: '2',
-      name: 'Chicken Burger',
-      price: 249,
-      category: 'Main Course',
-      description: 'Grilled chicken, lettuce, tomato',
-      available: true
-    },
-    {
-      id: '3',
-      name: 'Caesar Salad',
-      price: 199,
-      category: 'Appetizers',
-      description: 'Romaine lettuce, parmesan, croutons',
-      available: true
-    },
-    {
-      id: '4',
-      name: 'Coca Cola',
-      price: 49,
-      category: 'Beverages',
-      description: 'Chilled soft drink',
-      available: true
-    },
-    {
-      id: '5',
-      name: 'Chocolate Cake',
-      price: 149,
-      category: 'Desserts',
-      description: 'Rich chocolate cake with frosting',
-      available: true
-    },
-    {
-      id: '6',
-      name: 'Chicken Tikka',
-      price: 329,
-      category: 'Appetizers',
-      description: 'Grilled chicken with spices',
-      available: true
-    },
-    {
-      id: '7',
-      name: 'Masala Chai',
-      price: 25,
-      category: 'Beverages',
-      description: 'Traditional Indian spiced tea',
-      available: true
-    },
-    {
-      id: '8',
-      name: 'Biryani',
-      price: 349,
-      category: 'Main Course',
-      description: 'Aromatic rice with chicken',
-      available: true
-    }
+  // Base menu items - in production this would come from a database/API
+  const baseMenuItems: MenuItem[] = [
+    // Main Course
+    { id: '1', name: 'Paneer Butter Masala', price: 285, category: 'Main Course', description: 'Creamy tomato curry with cottage cheese', available: true },
+    { id: '2', name: 'Chicken Biryani', price: 345, category: 'Main Course', description: 'Aromatic basmati rice with spiced chicken', available: true },
+    { id: '3', name: 'Dal Tadka', price: 195, category: 'Main Course', description: 'Yellow lentils tempered with spices', available: true },
+    { id: '4', name: 'Butter Chicken', price: 325, category: 'Main Course', description: 'Tender chicken in rich tomato gravy', available: true },
+    { id: '5', name: 'Vegetable Pulao', price: 225, category: 'Main Course', description: 'Fragrant rice with mixed vegetables', available: true },
+    { id: '6', name: 'Fish Curry', price: 365, category: 'Main Course', description: 'Fresh fish in coconut curry', available: true },
+    
+    // Appetizers
+    { id: '7', name: 'Chicken Tikka', price: 295, category: 'Appetizers', description: 'Grilled chicken marinated in yogurt and spices', available: true },
+    { id: '8', name: 'Paneer Tikka', price: 245, category: 'Appetizers', description: 'Grilled cottage cheese with bell peppers', available: true },
+    { id: '9', name: 'Samosa (2 pcs)', price: 65, category: 'Appetizers', description: 'Crispy pastry filled with spiced potatoes', available: true },
+    { id: '10', name: 'Spring Rolls (4 pcs)', price: 125, category: 'Appetizers', description: 'Crispy rolls with vegetable filling', available: true },
+    { id: '11', name: 'Fish Fry', price: 275, category: 'Appetizers', description: 'Crispy fried fish with spices', available: true },
+    
+    // Beverages
+    { id: '12', name: 'Masala Chai', price: 35, category: 'Beverages', description: 'Traditional Indian spiced tea', available: true },
+    { id: '13', name: 'Fresh Lime Soda', price: 55, category: 'Beverages', description: 'Refreshing lime with soda water', available: true },
+    { id: '14', name: 'Mango Lassi', price: 75, category: 'Beverages', description: 'Creamy yogurt drink with mango', available: true },
+    { id: '15', name: 'Coffee', price: 45, category: 'Beverages', description: 'Freshly brewed coffee', available: true },
+    { id: '16', name: 'Coconut Water', price: 65, category: 'Beverages', description: 'Fresh tender coconut water', available: true },
+    
+    // Desserts
+    { id: '17', name: 'Gulab Jamun (2 pcs)', price: 85, category: 'Desserts', description: 'Sweet milk dumplings in sugar syrup', available: true },
+    { id: '18', name: 'Ice Cream (1 scoop)', price: 65, category: 'Desserts', description: 'Choose from vanilla, chocolate, or strawberry', available: true },
+    { id: '19', name: 'Kheer', price: 95, category: 'Desserts', description: 'Rice pudding with cardamom and nuts', available: true },
+    { id: '20', name: 'Gajar Halwa', price: 105, category: 'Desserts', description: 'Carrot pudding with milk and ghee', available: true }
   ];
 
-  const categories = [...new Set(menuItems.map(item => item.category))];
+  const categories = [...new Set(baseMenuItems.map(item => item.category))];
 
   const addToCart = (item: MenuItem) => {
     setCart(prev => {
@@ -163,23 +127,28 @@ const OrderTaking = () => {
 
   const generateTokenNumber = () => {
     const prefix = orderType === 'dine-in' ? 'D' : orderType === 'takeout' ? 'T' : 'DEL';
-    const number = Math.floor(Math.random() * 999) + 1;
-    return `${prefix}-${number.toString().padStart(3, '0')}`;
+    const timestamp = Date.now();
+    const number = (timestamp % 1000).toString().padStart(3, '0');
+    return `${prefix}-${number}`;
+  };
+
+  const validateOrder = (): string | null => {
+    if (cart.length === 0) return "Cart is empty";
+    if (orderType === 'dine-in' && !selectedTable) return "Please select a table";
+    if (!waiterName.trim()) return "Please enter waiter name";
+    if ((orderType === 'takeout' || orderType === 'delivery') && !customerName.trim()) {
+      return "Please enter customer name";
+    }
+    if (orderType === 'delivery' && !customerPhone.trim()) {
+      return "Please enter customer phone number";
+    }
+    return null;
   };
 
   const handleSaveOrder = () => {
-    if (cart.length === 0) {
-      toast.error("Cart is empty");
-      return;
-    }
-
-    if (orderType === 'dine-in' && !selectedTable) {
-      toast.error("Please select a table");
-      return;
-    }
-
-    if (!waiterName.trim()) {
-      toast.error("Please enter waiter name");
+    const validationError = validateOrder();
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
 
@@ -207,6 +176,8 @@ const OrderTaking = () => {
     { type: 'takeout' as const, label: 'Takeout', icon: Store, color: 'bg-green-500 hover:bg-green-600' },
     { type: 'delivery' as const, label: 'Delivery', icon: Car, color: 'bg-orange-500 hover:bg-orange-600' }
   ];
+
+  const availableItems = baseMenuItems.filter(item => item.available);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
@@ -252,7 +223,7 @@ const OrderTaking = () => {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                   <ShoppingCart className="h-5 w-5" />
-                  Menu
+                  Menu ({availableItems.length} items)
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex-1 overflow-hidden">
@@ -268,7 +239,7 @@ const OrderTaking = () => {
                   {categories.map(category => (
                     <TabsContent key={category} value={category} className="flex-1 overflow-y-auto">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {menuItems
+                        {availableItems
                           .filter(item => item.category === category)
                           .map(item => (
                             <Card key={item.id} className="hover:shadow-md transition-shadow">
@@ -323,6 +294,7 @@ const OrderTaking = () => {
                     <div className="text-center">
                       <ShoppingCart className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                       <p className="text-gray-500 text-sm">Cart is empty</p>
+                      <p className="text-gray-400 text-xs mt-1">Add items from the menu</p>
                     </div>
                   </div>
                 ) : (
@@ -382,7 +354,7 @@ const OrderTaking = () => {
                         <div>
                           <Label className="text-xs font-medium">Select Table *</Label>
                           <div className="grid grid-cols-4 gap-1 mt-1">
-                            {[1, 2, 3, 4, 5, 6, 7, 8].map(table => (
+                            {Array.from({length: 12}, (_, i) => i + 1).map(table => (
                               <Button
                                 key={table}
                                 variant={selectedTable === table ? "default" : "outline"}
@@ -400,7 +372,9 @@ const OrderTaking = () => {
                       {(orderType === 'takeout' || orderType === 'delivery') && (
                         <>
                           <div>
-                            <Label className="text-xs font-medium">Customer Name</Label>
+                            <Label className="text-xs font-medium">
+                              Customer Name {orderType === 'delivery' ? '*' : ''}
+                            </Label>
                             <Input
                               value={customerName}
                               onChange={(e) => setCustomerName(e.target.value)}
@@ -409,7 +383,9 @@ const OrderTaking = () => {
                             />
                           </div>
                           <div>
-                            <Label className="text-xs font-medium">Phone Number</Label>
+                            <Label className="text-xs font-medium">
+                              Phone Number {orderType === 'delivery' ? '*' : ''}
+                            </Label>
                             <Input
                               value={customerPhone}
                               onChange={(e) => setCustomerPhone(e.target.value)}
@@ -438,7 +414,7 @@ const OrderTaking = () => {
                       <Button 
                         className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold h-10"
                         onClick={handleSaveOrder}
-                        disabled={cart.length === 0 || (orderType === 'dine-in' && !selectedTable) || !waiterName.trim()}
+                        disabled={cart.length === 0}
                       >
                         <Save className="h-4 w-4 mr-2" />
                         Save Order

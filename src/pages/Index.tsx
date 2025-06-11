@@ -1,3 +1,4 @@
+
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,13 +11,29 @@ import {
   Settings,
   TrendingUp,
   Clock,
-  Star,
   CheckCircle,
   Receipt
 } from "lucide-react";
+import { useOrderContext } from "@/contexts/OrderContext";
 
 const Index = () => {
   const navigate = useNavigate();
+  const { savedOrders, getOrdersByStatus } = useOrderContext();
+
+  // Calculate real statistics
+  const todaysOrders = savedOrders.filter(order => {
+    const today = new Date();
+    const orderDate = new Date(order.timestamp);
+    return orderDate.toDateString() === today.toDateString();
+  });
+
+  const activeOrders = savedOrders.filter(order => order.status !== 'completed');
+  const kitchenQueue = savedOrders.filter(order => 
+    ['confirmed', 'preparing'].includes(order.status)
+  );
+  const todaysRevenue = todaysOrders
+    .filter(order => order.status === 'completed')
+    .reduce((total, order) => total + order.subtotal, 0);
 
   const menuItems = [
     {
@@ -36,12 +53,20 @@ const Index = () => {
       delay: "0.2s"
     },
     {
+      title: "Billing",
+      description: "Process saved orders and handle payments",
+      icon: Receipt,
+      path: "/billing",
+      color: "from-purple-500 to-indigo-500",
+      delay: "0.3s"
+    },
+    {
       title: "Table Management",
       description: "Manage table bookings and availability",
       icon: Users,
       path: "/tables",
       color: "gradient-secondary",
-      delay: "0.3s"
+      delay: "0.4s"
     },
     {
       title: "Menu Management",
@@ -49,17 +74,49 @@ const Index = () => {
       icon: Calendar,
       path: "/menu",
       color: "gradient-danger",
-      delay: "0.4s"
-    },
-    {
-      title: "Billing",
-      description: "Process saved orders and handle payments",
-      icon: Receipt,
-      path: "/billing",
-      color: "from-purple-500 to-indigo-500",
-      bgPattern: "bg-gradient-to-br from-purple-50 to-indigo-50"
+      delay: "0.5s"
     }
   ];
+
+  // Get recent activities from actual orders
+  const recentActivities = savedOrders
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, 3)
+    .map(order => {
+      const timeAgo = Math.floor((Date.now() - new Date(order.timestamp).getTime()) / 60000);
+      let description = '';
+      let icon = ShoppingCart;
+      let iconColor = 'text-blue-600';
+      
+      switch (order.status) {
+        case 'completed':
+          description = `Order completed`;
+          icon = CheckCircle;
+          iconColor = 'text-green-600';
+          break;
+        case 'ready':
+          description = `Order ready for ${order.orderType}`;
+          icon = Clock;
+          iconColor = 'text-orange-600';
+          break;
+        case 'preparing':
+          description = `Order in kitchen`;
+          icon = ChefHat;
+          iconColor = 'text-yellow-600';
+          break;
+        default:
+          description = `New ${order.orderType} order`;
+          icon = ShoppingCart;
+          iconColor = 'text-blue-600';
+      }
+
+      return {
+        title: `${order.tokenNumber} ${description}`,
+        description: `${order.tableNumber ? `Table ${order.tableNumber}` : order.customerName || 'Customer'} • ${timeAgo === 0 ? 'Just now' : `${timeAgo} min ago`}`,
+        icon,
+        iconColor
+      };
+    });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50">
@@ -106,10 +163,12 @@ const Index = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Today's Orders</p>
-                  <p className="text-3xl font-bold text-gray-900">42</p>
+                  <p className="text-3xl font-bold text-gray-900">{todaysOrders.length}</p>
                   <div className="flex items-center mt-2">
                     <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
-                    <span className="text-sm text-green-600">+12% from yesterday</span>
+                    <span className="text-sm text-green-600">
+                      {todaysOrders.length > 0 ? 'Active business' : 'Start taking orders'}
+                    </span>
                   </div>
                 </div>
                 <div className="p-3 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500">
@@ -123,11 +182,13 @@ const Index = () => {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Active Tables</p>
-                  <p className="text-3xl font-bold text-gray-900">8/15</p>
+                  <p className="text-sm text-gray-600 mb-1">Active Orders</p>
+                  <p className="text-3xl font-bold text-gray-900">{activeOrders.length}</p>
                   <div className="flex items-center mt-2">
                     <Clock className="h-4 w-4 text-blue-500 mr-1" />
-                    <span className="text-sm text-blue-600">2 waiting</span>
+                    <span className="text-sm text-blue-600">
+                      {activeOrders.length > 0 ? 'In progress' : 'All caught up'}
+                    </span>
                   </div>
                 </div>
                 <div className="p-3 rounded-2xl bg-gradient-to-r from-blue-500 to-purple-500">
@@ -142,10 +203,12 @@ const Index = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Kitchen Queue</p>
-                  <p className="text-3xl font-bold text-gray-900">6</p>
+                  <p className="text-3xl font-bold text-gray-900">{kitchenQueue.length}</p>
                   <div className="flex items-center mt-2">
-                    <Star className="h-4 w-4 text-green-500 mr-1" />
-                    <span className="text-sm text-green-600">On time</span>
+                    <ChefHat className="h-4 w-4 text-green-500 mr-1" />
+                    <span className="text-sm text-green-600">
+                      {kitchenQueue.length > 0 ? 'Orders cooking' : 'Kitchen ready'}
+                    </span>
                   </div>
                 </div>
                 <div className="p-3 rounded-2xl bg-gradient-to-r from-green-500 to-emerald-500">
@@ -160,10 +223,12 @@ const Index = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Today's Revenue</p>
-                  <p className="text-3xl font-bold text-gray-900">₹12,450</p>
+                  <p className="text-3xl font-bold text-gray-900">₹{todaysRevenue.toLocaleString()}</p>
                   <div className="flex items-center mt-2">
                     <TrendingUp className="h-4 w-4 text-purple-500 mr-1" />
-                    <span className="text-sm text-purple-600">+8% from yesterday</span>
+                    <span className="text-sm text-purple-600">
+                      {todaysRevenue > 0 ? 'Revenue earned' : 'No sales yet'}
+                    </span>
                   </div>
                 </div>
                 <div className="p-3 rounded-2xl bg-gradient-to-r from-purple-500 to-pink-500">
@@ -214,49 +279,35 @@ const Index = () => {
         {/* Recent Activity Section */}
         <div className="mt-12 animate-fade-in-up" style={{ animationDelay: "0.6s" }}>
           <h3 className="text-2xl font-bold text-gray-900 mb-6">Recent Activity</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="glass-effect hover-lift">
-              <CardContent className="pt-6">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 rounded-lg bg-green-100">
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium">Order #D-042 completed</p>
-                    <p className="text-sm text-gray-600">Table 5 • 2 minutes ago</p>
-                  </div>
-                </div>
+          {recentActivities.length === 0 ? (
+            <Card className="glass-effect">
+              <CardContent className="py-12 text-center">
+                <Clock className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500 font-medium mb-2">No recent activity</p>
+                <p className="text-gray-400 text-sm">Start taking orders to see activity here</p>
               </CardContent>
             </Card>
-            
-            <Card className="glass-effect hover-lift">
-              <CardContent className="pt-6">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 rounded-lg bg-blue-100">
-                    <Users className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium">Table 8 reserved</p>
-                    <p className="text-sm text-gray-600">Party of 4 • 5 minutes ago</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="glass-effect hover-lift">
-              <CardContent className="pt-6">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 rounded-lg bg-orange-100">
-                    <ShoppingCart className="h-5 w-5 text-orange-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium">New takeout order</p>
-                    <p className="text-sm text-gray-600">Order #T-018 • 1 minute ago</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {recentActivities.map((activity, index) => (
+                <Card key={index} className="glass-effect hover-lift">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center space-x-3">
+                      <div className={`p-2 rounded-lg ${activity.iconColor.includes('green') ? 'bg-green-100' : 
+                        activity.iconColor.includes('orange') ? 'bg-orange-100' :
+                        activity.iconColor.includes('yellow') ? 'bg-yellow-100' : 'bg-blue-100'}`}>
+                        <activity.icon className={`h-5 w-5 ${activity.iconColor}`} />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">{activity.title}</p>
+                        <p className="text-sm text-gray-600">{activity.description}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       </main>
     </div>

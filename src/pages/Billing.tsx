@@ -14,13 +14,12 @@ import {
   Banknote, 
   Smartphone,
   Receipt,
-  Edit,
-  Trash2,
   Plus,
   Minus,
   CheckCircle,
   Percent,
-  Calculator
+  Calculator,
+  Clock
 } from "lucide-react";
 import { useOrderContext, SavedOrder } from "@/contexts/OrderContext";
 
@@ -33,7 +32,10 @@ const Billing = () => {
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const pendingOrders = savedOrders.filter(order => order.status === 'saved');
+  // Get orders that are ready for billing (saved orders or ready orders)
+  const billableOrders = savedOrders.filter(order => 
+    ['saved', 'ready'].includes(order.status)
+  );
 
   const calculateTotals = (order: SavedOrder) => {
     const subtotal = order.subtotal;
@@ -52,10 +54,16 @@ const Billing = () => {
     
     setIsProcessing(true);
     try {
-      // Update order status to confirmed and send to kitchen
-      updateOrderStatus(selectedOrder.id, 'confirmed');
+      // If order is still in 'saved' status, move it to confirmed for kitchen
+      if (selectedOrder.status === 'saved') {
+        updateOrderStatus(selectedOrder.id, 'confirmed');
+        toast.success(`Order ${selectedOrder.tokenNumber} sent to kitchen and payment completed`);
+      } else {
+        // If order is ready, mark as completed
+        updateOrderStatus(selectedOrder.id, 'completed');
+        toast.success(`Payment completed for order ${selectedOrder.tokenNumber}`);
+      }
       
-      toast.success(`Payment completed for ${selectedOrder.tokenNumber}`);
       setSelectedOrder(null);
       setDiscount(0);
     } catch (error) {
@@ -65,13 +73,16 @@ const Billing = () => {
     }
   };
 
-  const updateOrderItem = (orderId: string, itemId: string, quantity: number) => {
-    if (quantity <= 0) {
-      // Remove item logic would go here
-      toast.success("Item removed from order");
-    } else {
-      // Update quantity logic would go here
-      toast.success("Item quantity updated");
+  const getOrderAge = (timestamp: Date) => {
+    const minutes = Math.floor((Date.now() - timestamp.getTime()) / 60000);
+    return minutes;
+  };
+
+  const getOrderStatusColor = (status: string) => {
+    switch (status) {
+      case 'saved': return 'bg-blue-100 text-blue-800';
+      case 'ready': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
@@ -97,10 +108,10 @@ const Billing = () => {
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 <span className="hidden sm:inline">Back</span>
               </Button>
-              <h1 className="text-lg sm:text-xl font-semibold">Billing</h1>
+              <h1 className="text-lg sm:text-xl font-semibold">Billing & Payments</h1>
             </div>
             <Badge variant="outline" className="text-xs sm:text-sm">
-              {pendingOrders.length} Pending Orders
+              {billableOrders.length} Orders Ready for Billing
             </Badge>
           </div>
         </div>
@@ -113,51 +124,65 @@ const Billing = () => {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                 <Receipt className="h-5 w-5" />
-                Pending Orders
+                Orders Ready for Billing
               </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 overflow-y-auto">
-              {pendingOrders.length === 0 ? (
+              {billableOrders.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <Receipt className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p>No pending orders</p>
+                  <p className="font-medium mb-2">No orders ready for billing</p>
+                  <p className="text-sm">Orders will appear here when saved or ready to serve</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {pendingOrders.map(order => (
-                    <Card 
-                      key={order.id}
-                      className={`cursor-pointer transition-all hover:shadow-md ${
-                        selectedOrder?.id === order.id ? 'ring-2 ring-blue-500' : ''
-                      }`}
-                      onClick={() => setSelectedOrder(order)}
-                    >
-                      <CardContent className="p-3 sm:p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <h3 className="font-semibold text-sm sm:text-base">
-                              {order.tokenNumber}
-                            </h3>
-                            <p className="text-xs sm:text-sm text-gray-600">
-                              {order.orderType} 
-                              {order.tableNumber && ` • Table ${order.tableNumber}`}
-                            </p>
+                  {billableOrders.map(order => {
+                    const age = getOrderAge(order.timestamp);
+                    return (
+                      <Card 
+                        key={order.id}
+                        className={`cursor-pointer transition-all hover:shadow-md ${
+                          selectedOrder?.id === order.id ? 'ring-2 ring-blue-500' : ''
+                        }`}
+                        onClick={() => setSelectedOrder(order)}
+                      >
+                        <CardContent className="p-3 sm:p-4">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <h3 className="font-semibold text-sm sm:text-base">
+                                {order.tokenNumber}
+                              </h3>
+                              <p className="text-xs sm:text-sm text-gray-600">
+                                {order.orderType} 
+                                {order.tableNumber && ` • Table ${order.tableNumber}`}
+                                {order.waiterName && ` • ${order.waiterName}`}
+                              </p>
+                              {order.customerName && (
+                                <p className="text-xs text-gray-500">
+                                  Customer: {order.customerName}
+                                </p>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="font-semibold text-orange-600 text-sm sm:text-base">
+                                ₹{order.subtotal}
+                              </p>
+                              <Badge className={`text-xs ${getOrderStatusColor(order.status)}`}>
+                                {order.status === 'saved' ? 'Pending' : 'Ready'}
+                              </Badge>
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-orange-600 text-sm sm:text-base">
-                              ₹{order.subtotal}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {order.items.length} items
-                            </p>
+                          <div className="flex justify-between items-center text-xs text-gray-500">
+                            <span>{order.items.length} items</span>
+                            <div className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              <span>{age} min ago</span>
+                            </div>
                           </div>
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {new Date(order.timestamp).toLocaleTimeString()}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -174,10 +199,40 @@ const Billing = () => {
               {!selectedOrder ? (
                 <div className="text-center py-8 text-gray-500">
                   <Calculator className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p>Select an order to start billing</p>
+                  <p className="font-medium mb-2">Select an order to start billing</p>
+                  <p className="text-sm">Choose from the orders list to process payment</p>
                 </div>
               ) : (
                 <div className="space-y-4">
+                  {/* Order Details */}
+                  <div className="bg-gray-50 p-3 rounded-lg">
+                    <h3 className="font-semibold mb-2 text-sm sm:text-base">Order Details</h3>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-gray-600">Type:</span>
+                        <span className="ml-2 capitalize">{selectedOrder.orderType}</span>
+                      </div>
+                      {selectedOrder.tableNumber && (
+                        <div>
+                          <span className="text-gray-600">Table:</span>
+                          <span className="ml-2">{selectedOrder.tableNumber}</span>
+                        </div>
+                      )}
+                      {selectedOrder.waiterName && (
+                        <div>
+                          <span className="text-gray-600">Waiter:</span>
+                          <span className="ml-2">{selectedOrder.waiterName}</span>
+                        </div>
+                      )}
+                      {selectedOrder.customerName && (
+                        <div>
+                          <span className="text-gray-600">Customer:</span>
+                          <span className="ml-2">{selectedOrder.customerName}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Order Items */}
                   <div>
                     <h3 className="font-semibold mb-3 text-sm sm:text-base">Order Items</h3>
@@ -187,32 +242,26 @@ const Billing = () => {
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-sm truncate">{item.name}</p>
                             <p className="text-xs text-gray-600">₹{item.price} each</p>
+                            {item.notes && (
+                              <p className="text-xs text-orange-600">Note: {item.notes}</p>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2 ml-2">
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => updateOrderItem(selectedOrder.id, item.id, item.quantity - 1)}
-                              className="h-6 w-6 p-0"
-                            >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <span className="font-medium text-sm min-w-[20px] text-center">
-                              {item.quantity}
-                            </span>
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => updateOrderItem(selectedOrder.id, item.id, item.quantity + 1)}
-                              className="h-6 w-6 p-0"
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
+                          <div className="ml-2 text-right">
+                            <span className="font-medium text-sm">{item.quantity}x</span>
+                            <p className="text-xs text-gray-600">₹{item.price * item.quantity}</p>
                           </div>
                         </div>
                       ))}
                     </div>
                   </div>
+
+                  {/* Special Instructions */}
+                  {selectedOrder.specialInstructions && (
+                    <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                      <h3 className="font-semibold text-sm text-yellow-800 mb-1">Special Instructions</h3>
+                      <p className="text-sm text-yellow-700">{selectedOrder.specialInstructions}</p>
+                    </div>
+                  )}
 
                   {/* Discount Section */}
                   <div>
