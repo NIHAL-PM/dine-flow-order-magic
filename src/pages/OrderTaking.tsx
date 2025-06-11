@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -6,7 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { useRestaurant, OrderItem, Order } from "@/contexts/RestaurantContext";
+import OrderStatusBadge from "@/components/OrderStatusBadge";
 import { 
   ArrowLeft, 
   Plus, 
@@ -17,118 +21,37 @@ import {
   Store,
   Trash2,
   Save,
-  Search
+  Search,
+  Clock,
+  Leaf,
+  Flame
 } from "lucide-react";
-
-interface MenuItem {
-  id: string;
-  name: string;
-  price: number;
-  category: string;
-  description: string;
-  available: boolean;
-}
-
-interface CartItem extends MenuItem {
-  quantity: number;
-  notes?: string;
-}
-
-interface SavedOrder {
-  id: string;
-  orderType: 'dine-in' | 'takeout' | 'delivery';
-  tableNumber?: number;
-  customerName?: string;
-  items: CartItem[];
-  total: number;
-  timestamp: Date;
-  status: 'pending' | 'confirmed';
-}
 
 const OrderTaking = () => {
   const navigate = useNavigate();
+  const { menuItems, orders, addOrder, tables } = useRestaurant();
   const [orderType, setOrderType] = useState<'dine-in' | 'takeout' | 'delivery'>('dine-in');
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<OrderItem[]>([]);
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
   const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerAddress, setCustomerAddress] = useState("");
+  const [specialInstructions, setSpecialInstructions] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [savedOrders, setSavedOrders] = useState<SavedOrder[]>([]);
-
-  const menuItems: MenuItem[] = [
-    {
-      id: '1',
-      name: 'Margherita Pizza',
-      price: 299,
-      category: 'Main Course',
-      description: 'Fresh tomatoes, mozzarella, basil',
-      available: true
-    },
-    {
-      id: '2',
-      name: 'Chicken Burger',
-      price: 249,
-      category: 'Main Course',
-      description: 'Grilled chicken, lettuce, tomato',
-      available: true
-    },
-    {
-      id: '3',
-      name: 'Caesar Salad',
-      price: 199,
-      category: 'Appetizers',
-      description: 'Romaine lettuce, parmesan, croutons',
-      available: true
-    },
-    {
-      id: '4',
-      name: 'Coca Cola',
-      price: 49,
-      category: 'Beverages',
-      description: 'Chilled soft drink',
-      available: true
-    },
-    {
-      id: '5',
-      name: 'Chocolate Cake',
-      price: 149,
-      category: 'Desserts',
-      description: 'Rich chocolate cake with frosting',
-      available: true
-    },
-    {
-      id: '6',
-      name: 'Chicken Tikka',
-      price: 329,
-      category: 'Appetizers',
-      description: 'Grilled chicken with spices',
-      available: true
-    },
-    {
-      id: '7',
-      name: 'Masala Chai',
-      price: 25,
-      category: 'Beverages',
-      description: 'Traditional Indian spiced tea',
-      available: true
-    },
-    {
-      id: '8',
-      name: 'Biryani',
-      price: 349,
-      category: 'Main Course',
-      description: 'Aromatic rice with chicken',
-      available: true
-    }
-  ];
+  const [waiterName, setWaiterName] = useState("");
 
   const categories = [...new Set(menuItems.map(item => item.category))];
-
+  const availableTables = tables.filter(table => table.status === 'available');
+  
   const filteredItems = menuItems.filter(item =>
-    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.description.toLowerCase().includes(searchTerm.toLowerCase())
+    item.available && (
+      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.ingredients.some(ing => ing.toLowerCase().includes(searchTerm.toLowerCase()))
+    )
   );
 
-  const addToCart = (item: MenuItem) => {
+  const addToCart = (item: typeof menuItems[0]) => {
     setCart(prev => {
       const existing = prev.find(cartItem => cartItem.id === item.id);
       if (existing) {
@@ -159,20 +82,28 @@ const OrderTaking = () => {
     );
   };
 
-  const removeFromCart = (id: string) => {
-    setCart(prev => prev.filter(item => item.id !== id));
-    toast.success("Item removed from cart");
+  const addItemNotes = (id: string, notes: string) => {
+    setCart(prev => prev.map(item => 
+      item.id === id ? { ...item, notes } : item
+    ));
   };
 
   const clearCart = () => {
     setCart([]);
     setSelectedTable(null);
     setCustomerName("");
+    setCustomerPhone("");
+    setCustomerAddress("");
+    setSpecialInstructions("");
     toast.success("Cart cleared");
   };
 
   const getTotalAmount = () => {
     return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+  };
+
+  const calculateEstimatedTime = () => {
+    return Math.max(...cart.map(item => item.preparationTime));
   };
 
   const saveOrder = () => {
@@ -186,37 +117,48 @@ const OrderTaking = () => {
       return;
     }
 
-    const newOrder: SavedOrder = {
-      id: `ORD-${Date.now()}`,
+    if ((orderType === 'takeout' || orderType === 'delivery') && !customerName) {
+      toast.error("Please enter customer name");
+      return;
+    }
+
+    if (orderType === 'delivery' && !customerAddress) {
+      toast.error("Please enter delivery address");
+      return;
+    }
+
+    const subtotal = getTotalAmount();
+    const tax = subtotal * 0.18;
+    const total = subtotal + tax;
+
+    const orderData: Omit<Order, 'id' | 'tokenNumber' | 'timestamp'> = {
       orderType,
       tableNumber: selectedTable || undefined,
       customerName: customerName || undefined,
+      customerPhone: customerPhone || undefined,
+      customerAddress: customerAddress || undefined,
       items: [...cart],
-      total: getTotalAmount(),
-      timestamp: new Date(),
-      status: 'pending'
+      subtotal,
+      discount: 0,
+      discountType: 'percentage',
+      tax,
+      total,
+      status: 'pending',
+      paymentStatus: 'pending',
+      estimatedTime: calculateEstimatedTime(),
+      waiterName: waiterName || undefined,
+      specialInstructions: specialInstructions || undefined
     };
 
-    setSavedOrders(prev => [...prev, newOrder]);
+    addOrder(orderData);
     clearCart();
-    toast.success(`Order ${newOrder.id} saved! Send to billing when ready.`);
+    toast.success("Order saved! Ready for confirmation and billing.");
   };
 
-  const sendToBilling = (orderId: string) => {
-    setSavedOrders(prev => 
-      prev.map(order => 
-        order.id === orderId 
-          ? { ...order, status: 'confirmed' as const }
-          : order
-      )
-    );
-    toast.success("Order sent to billing!");
-  };
-
-  const deleteOrder = (orderId: string) => {
-    setSavedOrders(prev => prev.filter(order => order.id !== orderId));
-    toast.success("Order deleted");
-  };
+  const recentOrders = orders
+    .filter(order => order.waiterName === waiterName || !waiterName)
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, 5);
 
   const orderTypeButtons = [
     { type: 'dine-in' as const, label: 'Dine-in', icon: Users, color: 'bg-blue-500 hover:bg-blue-600' },
@@ -226,7 +168,7 @@ const OrderTaking = () => {
 
   return (
     <div className="h-screen-safe bg-gradient-to-br from-slate-50 to-gray-100 overflow-hidden flex flex-col">
-      {/* Responsive Header */}
+      {/* Header */}
       <header className="glass-effect border-b-0 flex-shrink-0">
         <div className="container-fluid">
           <div className="flex justify-between items-center h-12 sm:h-14">
@@ -302,8 +244,16 @@ const OrderTaking = () => {
                               <CardContent className="p-2 sm:p-3">
                                 <div className="flex justify-between items-start mb-2">
                                   <div className="flex-1 min-w-0">
-                                    <h3 className="font-semibold text-sm sm:text-base truncate">{item.name}</h3>
+                                    <div className="flex items-center gap-1 mb-1">
+                                      <h3 className="font-semibold text-sm sm:text-base truncate">{item.name}</h3>
+                                      {item.isVegetarian && <Leaf className="h-3 w-3 text-green-500" />}
+                                      {item.spiceLevel !== 'mild' && <Flame className="h-3 w-3 text-red-500" />}
+                                    </div>
                                     <p className="text-gray-600 text-xs sm:text-sm mb-1 line-clamp-2">{item.description}</p>
+                                    <div className="flex items-center gap-1 mb-1">
+                                      <Clock className="h-3 w-3 text-gray-400" />
+                                      <span className="text-xs text-gray-500">{item.preparationTime} min</span>
+                                    </div>
                                   </div>
                                   <Badge variant="default" className="ml-2 text-xs">
                                     ₹{item.price}
@@ -315,7 +265,7 @@ const OrderTaking = () => {
                                   disabled={!item.available}
                                 >
                                   <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                                  Add
+                                  Add to Cart
                                 </Button>
                               </CardContent>
                             </Card>
@@ -351,48 +301,68 @@ const OrderTaking = () => {
                   <>
                     <div className="flex-1 overflow-auto mobile-scroll space-y-2 mb-4">
                       {cart.map(item => (
-                        <div key={item.id} className="flex items-center justify-between bg-gray-50 p-2 rounded-lg animate-scale-in">
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-medium text-xs sm:text-sm truncate">{item.name}</h4>
-                            <p className="text-gray-600 text-xs">₹{item.price}</p>
+                        <div key={item.id} className="bg-gray-50 p-2 rounded-lg animate-scale-in">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-xs sm:text-sm truncate">{item.name}</h4>
+                              <p className="text-gray-600 text-xs">₹{item.price} × {item.quantity}</p>
+                            </div>
+                            <div className="flex items-center space-x-1 ml-2">
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => updateQuantity(item.id, -1)}
+                                className="h-6 w-6 sm:h-8 sm:w-8 p-0"
+                              >
+                                <Minus className="h-2 w-2 sm:h-3 sm:w-3" />
+                              </Button>
+                              <span className="font-medium min-w-[20px] text-center text-xs sm:text-sm">{item.quantity}</span>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => updateQuantity(item.id, 1)}
+                                className="h-6 w-6 sm:h-8 sm:w-8 p-0"
+                              >
+                                <Plus className="h-2 w-2 sm:h-3 sm:w-3" />
+                              </Button>
+                            </div>
                           </div>
-                          <div className="flex items-center space-x-1 ml-2">
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => updateQuantity(item.id, -1)}
-                              className="h-6 w-6 sm:h-8 sm:w-8 p-0"
-                            >
-                              <Minus className="h-2 w-2 sm:h-3 sm:w-3" />
-                            </Button>
-                            <span className="font-medium min-w-[20px] text-center text-xs sm:text-sm">{item.quantity}</span>
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => updateQuantity(item.id, 1)}
-                              className="h-6 w-6 sm:h-8 sm:w-8 p-0"
-                            >
-                              <Plus className="h-2 w-2 sm:h-3 sm:w-3" />
-                            </Button>
-                          </div>
+                          <Input
+                            placeholder="Special notes..."
+                            value={item.notes || ''}
+                            onChange={(e) => addItemNotes(item.id, e.target.value)}
+                            className="h-6 text-xs"
+                          />
                         </div>
                       ))}
                     </div>
                     
-                    <div className="border-t pt-3 flex-shrink-0">
+                    <div className="border-t pt-3 flex-shrink-0 space-y-3">
+                      {/* Waiter Name */}
+                      <div>
+                        <Label className="text-xs sm:text-sm font-medium">Waiter Name:</Label>
+                        <Input
+                          value={waiterName}
+                          onChange={(e) => setWaiterName(e.target.value)}
+                          placeholder="Enter your name"
+                          className="mt-1 h-8 text-sm"
+                        />
+                      </div>
+
+                      {/* Order Type Specific Fields */}
                       {orderType === 'dine-in' && (
-                        <div className="mb-3">
-                          <Label className="text-xs sm:text-sm font-medium">Table:</Label>
+                        <div>
+                          <Label className="text-xs sm:text-sm font-medium">Table ({availableTables.length} available):</Label>
                           <div className="grid grid-cols-4 gap-1 mt-1">
-                            {[1, 2, 3, 4, 5, 6, 7, 8].map(table => (
+                            {availableTables.slice(0, 8).map(table => (
                               <Button
-                                key={table}
-                                variant={selectedTable === table ? "default" : "outline"}
+                                key={table.id}
+                                variant={selectedTable === table.id ? "default" : "outline"}
                                 size="sm"
-                                onClick={() => setSelectedTable(table)}
-                                className={`btn-touch text-xs ${selectedTable === table ? "bg-blue-500 hover:bg-blue-600" : ""}`}
+                                onClick={() => setSelectedTable(table.id)}
+                                className={`btn-touch text-xs ${selectedTable === table.id ? "bg-blue-500 hover:bg-blue-600" : ""}`}
                               >
-                                {table}
+                                T{table.id}
                               </Button>
                             ))}
                           </div>
@@ -400,26 +370,66 @@ const OrderTaking = () => {
                       )}
                       
                       {(orderType === 'takeout' || orderType === 'delivery') && (
-                        <div className="mb-3">
-                          <Label className="text-xs sm:text-sm font-medium">Customer Name:</Label>
-                          <Input
-                            value={customerName}
-                            onChange={(e) => setCustomerName(e.target.value)}
-                            placeholder="Enter customer name"
-                            className="mt-1 h-8 text-sm"
-                          />
+                        <div className="space-y-2">
+                          <div>
+                            <Label className="text-xs sm:text-sm font-medium">Customer Name:</Label>
+                            <Input
+                              value={customerName}
+                              onChange={(e) => setCustomerName(e.target.value)}
+                              placeholder="Enter customer name"
+                              className="mt-1 h-8 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs sm:text-sm font-medium">Phone:</Label>
+                            <Input
+                              value={customerPhone}
+                              onChange={(e) => setCustomerPhone(e.target.value)}
+                              placeholder="Enter phone number"
+                              className="mt-1 h-8 text-sm"
+                            />
+                          </div>
+                          {orderType === 'delivery' && (
+                            <div>
+                              <Label className="text-xs sm:text-sm font-medium">Address:</Label>
+                              <Textarea
+                                value={customerAddress}
+                                onChange={(e) => setCustomerAddress(e.target.value)}
+                                placeholder="Enter delivery address"
+                                className="mt-1 h-16 text-sm resize-none"
+                              />
+                            </div>
+                          )}
                         </div>
                       )}
+
+                      {/* Special Instructions */}
+                      <div>
+                        <Label className="text-xs sm:text-sm font-medium">Special Instructions:</Label>
+                        <Textarea
+                          value={specialInstructions}
+                          onChange={(e) => setSpecialInstructions(e.target.value)}
+                          placeholder="Any special requests..."
+                          className="mt-1 h-12 text-sm resize-none"
+                        />
+                      </div>
                       
-                      <div className="flex justify-between items-center mb-3">
-                        <span className="font-semibold text-sm sm:text-base">Total:</span>
-                        <span className="font-bold text-lg sm:text-xl text-orange-600">₹{getTotalAmount()}</span>
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <span className="font-semibold text-sm sm:text-base">Total: ₹{getTotalAmount()}</span>
+                          <p className="text-xs text-gray-500">Est. {calculateEstimatedTime()} min</p>
+                        </div>
                       </div>
                       
                       <Button 
                         className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 btn-touch text-xs sm:text-sm"
                         onClick={saveOrder}
-                        disabled={cart.length === 0 || (orderType === 'dine-in' && !selectedTable)}
+                        disabled={
+                          cart.length === 0 || 
+                          (orderType === 'dine-in' && !selectedTable) ||
+                          ((orderType === 'takeout' || orderType === 'delivery') && !customerName) ||
+                          (orderType === 'delivery' && !customerAddress)
+                        }
                       >
                         <Save className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
                         Save Order
@@ -431,25 +441,25 @@ const OrderTaking = () => {
             </Card>
           </div>
 
-          {/* Saved Orders Section */}
+          {/* Recent Orders Section */}
           <div className="flex flex-col">
             <Card className="glass-effect animate-slide-up flex-1 overflow-hidden">
               <CardHeader className="pb-2 sm:pb-3 flex-shrink-0">
-                <CardTitle className="text-responsive-base">Saved Orders ({savedOrders.length})</CardTitle>
+                <CardTitle className="text-responsive-base">Recent Orders</CardTitle>
               </CardHeader>
               <CardContent className="flex-1 overflow-auto mobile-scroll p-2 sm:p-4">
-                {savedOrders.length === 0 ? (
+                {recentOrders.length === 0 ? (
                   <div className="text-center py-8">
-                    <p className="text-gray-500 text-sm">No saved orders</p>
+                    <p className="text-gray-500 text-sm">No recent orders</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {savedOrders.map(order => (
+                    {recentOrders.map(order => (
                       <Card key={order.id} className="border hover:border-blue-200 transition-colors">
                         <CardContent className="p-2 sm:p-3">
                           <div className="flex justify-between items-start mb-2">
                             <div>
-                              <p className="font-medium text-xs sm:text-sm">{order.id}</p>
+                              <p className="font-medium text-xs sm:text-sm">{order.tokenNumber}</p>
                               <p className="text-xs text-gray-600">
                                 {order.orderType} {order.tableNumber && `• Table ${order.tableNumber}`}
                               </p>
@@ -457,31 +467,13 @@ const OrderTaking = () => {
                                 <p className="text-xs text-gray-600">{order.customerName}</p>
                               )}
                             </div>
-                            <Badge variant={order.status === 'pending' ? 'secondary' : 'default'} className="text-xs">
-                              {order.status}
-                            </Badge>
+                            <OrderStatusBadge status={order.status} variant="compact" />
                           </div>
                           <div className="flex justify-between items-center">
                             <span className="font-semibold text-orange-600 text-sm">₹{order.total}</span>
-                            <div className="flex space-x-1">
-                              {order.status === 'pending' && (
-                                <Button
-                                  size="sm"
-                                  onClick={() => sendToBilling(order.id)}
-                                  className="bg-blue-500 hover:bg-blue-600 text-xs h-6 px-2"
-                                >
-                                  Bill
-                                </Button>
-                              )}
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => deleteOrder(order.id)}
-                                className="text-red-500 hover:text-red-700 text-xs h-6 px-2"
-                              >
-                                Del
-                              </Button>
-                            </div>
+                            <span className="text-xs text-gray-500">
+                              {order.timestamp.toLocaleTimeString()}
+                            </span>
                           </div>
                         </CardContent>
                       </Card>

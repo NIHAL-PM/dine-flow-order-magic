@@ -1,308 +1,258 @@
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
+import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import SystemStatus from '@/components/SystemStatus';
 import { 
+  ShoppingCart, 
+  CreditCard, 
   ChefHat, 
   Users, 
-  ShoppingCart, 
-  Calendar,
+  Menu as MenuIcon, 
   BarChart3,
-  Settings,
-  TrendingUp,
-  Clock,
-  Star,
-  CheckCircle,
-  Receipt,
-  Menu
-} from "lucide-react";
+  Utensils,
+  Timer,
+  DollarSign,
+  Smartphone
+} from 'lucide-react';
 
 const Index = () => {
   const navigate = useNavigate();
 
-  const dashboardCards = [
+  const features = [
     {
-      title: "Order Taking",
-      description: "Take orders for dine-in, takeout, and delivery",
+      title: 'Dashboard',
+      description: 'Real-time overview of restaurant operations',
+      icon: BarChart3,
+      path: '/dashboard',
+      color: 'bg-gradient-to-r from-purple-500 to-violet-500',
+      features: ['Live Analytics', 'Order Tracking', 'Revenue Monitoring']
+    },
+    {
+      title: 'Order Taking',
+      description: 'Fast & intuitive order placement system',
       icon: ShoppingCart,
-      path: "/order-taking",
-      color: "gradient-primary",
-      delay: "0.1s"
+      path: '/order-taking',
+      color: 'bg-gradient-to-r from-blue-500 to-cyan-500',
+      features: ['Mobile Optimized', 'Touch Friendly', 'Quick Search']
     },
     {
-      title: "Kitchen Display",
-      description: "Real-time order management for kitchen staff",
+      title: 'Billing System',
+      description: 'Complete payment processing & bill generation',
+      icon: CreditCard,
+      path: '/billing',
+      color: 'bg-gradient-to-r from-green-500 to-emerald-500',
+      features: ['Multiple Payment Methods', 'Discount Management', 'Thermal Printing']
+    },
+    {
+      title: 'Kitchen Display',
+      description: 'Real-time order management for kitchen staff',
       icon: ChefHat,
-      path: "/kitchen",
-      color: "gradient-success",
-      delay: "0.2s"
+      path: '/kitchen',
+      color: 'bg-gradient-to-r from-orange-500 to-amber-500',
+      features: ['Order Prioritization', 'Time Tracking', 'Status Updates']
     },
     {
-      title: "Table Management",
-      description: "Manage table bookings and availability",
+      title: 'Table Management',
+      description: 'Interactive table layout & reservation system',
       icon: Users,
-      path: "/tables",
-      color: "gradient-secondary",
-      delay: "0.3s"
+      path: '/tables',
+      color: 'bg-gradient-to-r from-pink-500 to-rose-500',
+      features: ['Visual Layout', 'Reservation Booking', 'Occupancy Tracking']
     },
     {
-      title: "Menu Management",
-      description: "Add, edit, and organize menu items",
-      icon: Calendar,
-      path: "/menu",
-      color: "gradient-danger",
-      delay: "0.4s"
+      title: 'Menu Management',
+      description: 'Dynamic menu creation & inventory control',
+      icon: MenuIcon,
+      path: '/menu',
+      color: 'bg-gradient-to-r from-indigo-500 to-purple-500',
+      features: ['Category Organization', 'Price Management', 'Availability Control']
     }
   ];
 
-  const quickActions = [
-    {
-      title: "Take Order",
-      description: "Create new orders for customers",
-      icon: ShoppingCart,
-      color: "from-blue-500 to-blue-600",
-      path: "/order-taking",
-      stats: "Active Tables: 4"
-    },
-    {
-      title: "Billing",
-      description: "Process payments and generate bills",
-      icon: Receipt,
-      color: "from-green-500 to-green-600", 
-      path: "/billing",
-      stats: "Pending Bills: 3"
-    },
-    {
-      title: "Kitchen Display",
-      description: "View and manage kitchen orders",
-      icon: ChefHat,
-      color: "from-orange-500 to-orange-600",
-      path: "/kitchen",
-      stats: "Pending Orders: 8"
-    },
-    {
-      title: "Table Management",
-      description: "Manage table bookings and status",
-      icon: Users,
-      color: "from-purple-500 to-purple-600",
-      path: "/tables",
-      stats: "Available: 12/20"
-    },
-    {
-      title: "Menu Management",
-      description: "Update menu items and pricing",
-      icon: Menu,
-      color: "from-pink-500 to-pink-600",
-      path: "/menu",
-      stats: "Active Items: 45"
-    },
-    {
-      title: "Reports",
-      description: "View sales and analytics",
-      icon: BarChart3,
-      color: "from-indigo-500 to-indigo-600",
-      path: "/reports",
-      stats: "Today's Sales: ₹12,450"
-    }
+  const keyBenefits = [
+    { icon: Smartphone, title: 'Mobile First Design', desc: 'Touch-optimized for tablets & phones' },
+    { icon: Timer, title: 'Real-time Updates', desc: 'Instant synchronization across all devices' },
+    { icon: DollarSign, title: 'Revenue Optimization', desc: 'Smart analytics & reporting tools' },
+    { icon: Utensils, title: 'Complete Solution', desc: 'End-to-end restaurant management' }
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50">
-      {/* Enhanced Header with glass effect */}
-      <header className="glass-effect border-b-0 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center animate-fade-in">
-              <div className="p-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500">
-                <ChefHat className="h-8 w-8 text-white" />
-              </div>
-              <div className="ml-3">
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
-                  RestaurantOS
-                </h1>
-                <p className="text-xs text-gray-600">Restaurant Management System</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-3 animate-fade-in" style={{ animationDelay: "0.2s" }}>
-              <Button variant="outline" size="sm" className="hover-lift">
-                <BarChart3 className="h-4 w-4 mr-2" />
-                Reports
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-gray-100">
+      {/* Hero Section */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500">
+        <div className="absolute inset-0 bg-black/10"></div>
+        <div className="relative px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
+          <div className="text-center">
+            <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl md:text-6xl">
+              Dine Flow
+              <span className="block text-yellow-100">Order Magic</span>
+            </h1>
+            <p className="mx-auto mt-6 max-w-2xl text-xl text-orange-100">
+              Complete restaurant management solution with modern POS, kitchen display, 
+              table management, and real-time analytics. Designed for efficiency and growth.
+            </p>
+            <div className="mt-8 flex justify-center gap-4">
+              <Button 
+                size="lg" 
+                onClick={() => navigate('/dashboard')}
+                className="bg-white text-orange-600 hover:bg-orange-50 font-semibold px-8 py-3"
+              >
+                <BarChart3 className="mr-2 h-5 w-5" />
+                Open Dashboard
               </Button>
-              <Button variant="outline" size="sm" className="hover-lift">
-                <Settings className="h-4 w-4 mr-2" />
-                Settings
+              <Button 
+                size="lg" 
+                variant="outline"
+                onClick={() => navigate('/order-taking')}
+                className="border-white text-white hover:bg-white/10 font-semibold px-8 py-3"
+              >
+                <ShoppingCart className="mr-2 h-5 w-5" />
+                Take Order
               </Button>
             </div>
           </div>
         </div>
-      </header>
+      </div>
 
-      {/* Main Dashboard */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8 animate-fade-in-up">
-          <h2 className="text-4xl font-bold text-gray-900 mb-2">Welcome Back!</h2>
-          <p className="text-gray-600 text-lg">Manage your restaurant operations efficiently</p>
+      {/* System Status */}
+      <div className="px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <SystemStatus />
         </div>
+      </div>
 
-        {/* Enhanced Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card className="glass-effect hover-lift hover-glow animate-scale-in" style={{ animationDelay: "0.1s" }}>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Today's Orders</p>
-                  <p className="text-3xl font-bold text-gray-900">42</p>
-                  <div className="flex items-center mt-2">
-                    <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
-                    <span className="text-sm text-green-600">+12% from yesterday</span>
+      {/* Key Benefits */}
+      <div className="px-4 py-12 sm:px-6 lg:px-8 bg-white/50">
+        <div className="mx-auto max-w-7xl">
+          <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">
+            Why Choose Dine Flow?
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {keyBenefits.map((benefit, index) => (
+              <Card key={index} className="glass-effect hover-lift text-center">
+                <CardContent className="p-6">
+                  <div className="mx-auto w-12 h-12 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl flex items-center justify-center mb-4">
+                    <benefit.icon className="h-6 w-6 text-white" />
                   </div>
-                </div>
-                <div className="p-3 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500">
-                  <ShoppingCart className="h-8 w-8 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="glass-effect hover-lift hover-glow animate-scale-in" style={{ animationDelay: "0.2s" }}>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Active Tables</p>
-                  <p className="text-3xl font-bold text-gray-900">8/15</p>
-                  <div className="flex items-center mt-2">
-                    <Clock className="h-4 w-4 text-blue-500 mr-1" />
-                    <span className="text-sm text-blue-600">2 waiting</span>
-                  </div>
-                </div>
-                <div className="p-3 rounded-2xl bg-gradient-to-r from-blue-500 to-purple-500">
-                  <Users className="h-8 w-8 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="glass-effect hover-lift hover-glow animate-scale-in" style={{ animationDelay: "0.3s" }}>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Kitchen Queue</p>
-                  <p className="text-3xl font-bold text-gray-900">6</p>
-                  <div className="flex items-center mt-2">
-                    <Star className="h-4 w-4 text-green-500 mr-1" />
-                    <span className="text-sm text-green-600">On time</span>
-                  </div>
-                </div>
-                <div className="p-3 rounded-2xl bg-gradient-to-r from-green-500 to-emerald-500">
-                  <ChefHat className="h-8 w-8 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="glass-effect hover-lift hover-glow animate-scale-in" style={{ animationDelay: "0.4s" }}>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Today's Revenue</p>
-                  <p className="text-3xl font-bold text-gray-900">₹12,450</p>
-                  <div className="flex items-center mt-2">
-                    <TrendingUp className="h-4 w-4 text-purple-500 mr-1" />
-                    <span className="text-sm text-purple-600">+8% from yesterday</span>
-                  </div>
-                </div>
-                <div className="p-3 rounded-2xl bg-gradient-to-r from-purple-500 to-pink-500">
-                  <BarChart3 className="h-8 w-8 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                  <h3 className="font-semibold text-gray-900 mb-2">{benefit.title}</h3>
+                  <p className="text-sm text-gray-600">{benefit.desc}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
+      </div>
 
-        {/* Enhanced Main Action Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {dashboardCards.map((card, index) => (
-            <Card 
-              key={index} 
-              className="glass-effect hover-lift hover-glow cursor-pointer group animate-fade-in-up overflow-hidden"
-              style={{ animationDelay: card.delay }}
+      {/* Main Features Grid */}
+      <div className="px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+              Complete Restaurant Solution
+            </h2>
+            <p className="mt-4 text-lg text-gray-600">
+              Everything you need to run a modern restaurant efficiently
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {features.map((feature, index) => (
+              <Card 
+                key={index} 
+                className="glass-effect hover-lift hover-glow transition-all duration-300 cursor-pointer group"
+                onClick={() => navigate(feature.path)}
+              >
+                <CardHeader className="pb-4">
+                  <div className={`w-12 h-12 rounded-xl ${feature.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                    <feature.icon className="h-6 w-6 text-white" />
+                  </div>
+                  <CardTitle className="text-xl font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
+                    {feature.title}
+                  </CardTitle>
+                  <CardDescription className="text-gray-600">
+                    {feature.description}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {feature.features.map((feat, idx) => (
+                      <div key={idx} className="flex items-center text-sm">
+                        <div className="w-1.5 h-1.5 bg-orange-500 rounded-full mr-2"></div>
+                        <span className="text-gray-600">{feat}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <Button 
+                    className="w-full mt-4 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(feature.path);
+                    }}
+                  >
+                    Launch {feature.title}
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Start Section */}
+      <div className="px-4 py-16 sm:px-6 lg:px-8 bg-gradient-to-r from-gray-900 to-gray-800">
+        <div className="mx-auto max-w-4xl text-center">
+          <h2 className="text-3xl font-bold text-white mb-6">
+            Ready to Transform Your Restaurant?
+          </h2>
+          <p className="text-xl text-gray-300 mb-8">
+            Start taking orders, managing tables, and processing payments in minutes
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button 
+              size="lg"
+              onClick={() => navigate('/dashboard')}
+              className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 font-semibold px-8 py-3"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              <CardHeader className="relative">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-2xl mb-2 group-hover:text-orange-600 transition-colors">
-                      {card.title}
-                    </CardTitle>
-                    <CardDescription className="text-gray-600 text-base">
-                      {card.description}
-                    </CardDescription>
-                  </div>
-                  <div className="p-4 rounded-2xl bg-gradient-to-r from-gray-100 to-gray-200 group-hover:from-orange-100 group-hover:to-amber-100 transition-all duration-300">
-                    <card.icon className="h-12 w-12 text-gray-600 group-hover:text-orange-600 transition-colors duration-300" />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="relative">
-                <Button 
-                  onClick={() => navigate(card.path)}
-                  className={`w-full ${card.color} text-white hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl`}
-                  size="lg"
-                >
-                  Open {card.title}
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* Recent Activity Section */}
-        <div className="mt-12 animate-fade-in-up" style={{ animationDelay: "0.6s" }}>
-          <h3 className="text-2xl font-bold text-gray-900 mb-6">Recent Activity</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="glass-effect hover-lift">
-              <CardContent className="pt-6">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 rounded-lg bg-green-100">
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium">Order #D-042 completed</p>
-                    <p className="text-sm text-gray-600">Table 5 • 2 minutes ago</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="glass-effect hover-lift">
-              <CardContent className="pt-6">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 rounded-lg bg-blue-100">
-                    <Users className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium">Table 8 reserved</p>
-                    <p className="text-sm text-gray-600">Party of 4 • 5 minutes ago</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="glass-effect hover-lift">
-              <CardContent className="pt-6">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 rounded-lg bg-orange-100">
-                    <ShoppingCart className="h-5 w-5 text-orange-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium">New takeout order</p>
-                    <p className="text-sm text-gray-600">Order #T-018 • 1 minute ago</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              <BarChart3 className="mr-2 h-5 w-5" />
+              View Dashboard
+            </Button>
+            <Button 
+              size="lg"
+              variant="outline"
+              onClick={() => navigate('/order-taking')}
+              className="border-white text-white hover:bg-white/10 font-semibold px-8 py-3"
+            >
+              <ShoppingCart className="mr-2 h-5 w-5" />
+              Start Taking Orders
+            </Button>
           </div>
         </div>
-      </main>
+      </div>
+
+      {/* Footer */}
+      <footer className="bg-white border-t border-gray-200 py-8">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Dine Flow Order Magic</h3>
+            <p className="text-gray-600 text-sm">
+              Modern Restaurant Management System • Built for Efficiency & Growth
+            </p>
+            <div className="mt-4 flex justify-center space-x-4">
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                Production Ready
+              </Badge>
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                Mobile Optimized
+              </Badge>
+              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                Real-time Updates
+              </Badge>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
