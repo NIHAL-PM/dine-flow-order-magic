@@ -1,42 +1,35 @@
 
-import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { Toaster } from 'sonner';
-import { NotificationProvider } from './contexts/NotificationContext';
-import { RestaurantProvider } from './contexts/RestaurantContext';
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
-import Dashboard from "./pages/Dashboard";
+import NotFound from "./pages/NotFound";
 import OrderTaking from "./pages/OrderTaking";
 import KitchenDisplay from "./pages/KitchenDisplay";
 import TableManagement from "./pages/TableManagement";
 import MenuManagement from "./pages/MenuManagement";
-import NotFound from "./pages/NotFound";
-import NotificationWrapper from "./components/NotificationWrapper";
-import Billing from "./pages/Billing";
 
-function App() {
-  return (
-    <BrowserRouter>
-      <RestaurantProvider>
-        <NotificationProvider>
-          <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
-            <Toaster />
-            <NotificationWrapper />
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/order-taking" element={<OrderTaking />} />
-              <Route path="/billing" element={<Billing />} />
-              <Route path="/kitchen" element={<KitchenDisplay />} />
-              <Route path="/tables" element={<TableManagement />} />
-              <Route path="/menu" element={<MenuManagement />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </div>
-        </NotificationProvider>
-      </RestaurantProvider>
-    </BrowserRouter>
-  );
-}
+const queryClient = new QueryClient();
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/order-taking" element={<OrderTaking />} />
+          <Route path="/kitchen" element={<KitchenDisplay />} />
+          <Route path="/tables" element={<TableManagement />} />
+          <Route path="/menu" element={<MenuManagement />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </BrowserRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
 
 export default App;
