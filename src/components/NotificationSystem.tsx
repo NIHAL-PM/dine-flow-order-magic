@@ -79,13 +79,13 @@ const NotificationSystem = ({
   };
 
   return (
-    <div className="relative">
+    <div className="fixed top-4 right-4 z-50">
       {/* Notification Bell */}
       <Button
         variant="ghost"
         size="sm"
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2"
+        className="relative p-2 bg-white/90 backdrop-blur-sm border shadow-lg hover:bg-white/95"
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (
