@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 import { 
   Plus, 
   Edit3, 
@@ -21,7 +21,8 @@ import {
   Star,
   DollarSign,
   Eye,
-  EyeOff
+  EyeOff,
+  ArrowLeft
 } from "lucide-react";
 
 interface MenuItem {
@@ -39,56 +40,13 @@ interface MenuItem {
 }
 
 const MenuManagement = () => {
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([
-    {
-      id: '1',
-      name: 'Margherita Pizza',
-      description: 'Fresh tomatoes, mozzarella, basil on crispy crust',
-      price: 299,
-      category: 'Main Course',
-      available: true,
-      dietary: ['Vegetarian'],
-      preparationTime: 15,
-      ingredients: ['Tomatoes', 'Mozzarella', 'Basil', 'Pizza Dough'],
-      popularity: 95
-    },
-    {
-      id: '2',
-      name: 'Chicken Burger',
-      description: 'Grilled chicken with lettuce, tomato, and special sauce',
-      price: 249,
-      category: 'Main Course',
-      available: true,
-      dietary: ['Non-Vegetarian'],
-      preparationTime: 12,
-      ingredients: ['Chicken Breast', 'Lettuce', 'Tomato', 'Burger Bun'],
-      popularity: 87
-    },
-    {
-      id: '3',
-      name: 'Caesar Salad',
-      description: 'Crisp romaine lettuce with parmesan and croutons',
-      price: 199,
-      category: 'Appetizers',
-      available: true,
-      dietary: ['Vegetarian'],
-      preparationTime: 8,
-      ingredients: ['Romaine Lettuce', 'Parmesan', 'Croutons', 'Caesar Dressing'],
-      popularity: 72
-    },
-    {
-      id: '4',
-      name: 'Masala Chai',
-      description: 'Traditional Indian spiced tea',
-      price: 25,
-      category: 'Beverages',
-      available: false,
-      dietary: ['Vegetarian', 'Vegan'],
-      preparationTime: 5,
-      ingredients: ['Tea Leaves', 'Milk', 'Spices', 'Sugar'],
-      popularity: 89
-    }
-  ]);
+  const navigate = useNavigate();
+  
+  // Get menu items from localStorage or use empty array
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(() => {
+    const saved = localStorage.getItem('menuItems');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   const [categories] = useState(['Appetizers', 'Main Course', 'Beverages', 'Desserts']);
   const [dietaryOptions] = useState(['Vegetarian', 'Vegan', 'Non-Vegetarian', 'Gluten-Free', 'Spicy']);
@@ -109,6 +67,14 @@ const MenuManagement = () => {
     ingredients: [] as string[],
     ingredientInput: ''
   });
+
+  // Save to localStorage whenever menuItems changes
+  const saveMenuItems = (items: MenuItem[]) => {
+    setMenuItems(items);
+    localStorage.setItem('menuItems', JSON.stringify(items));
+    // Also save to a global menu context if needed
+    window.dispatchEvent(new CustomEvent('menuUpdated', { detail: items }));
+  };
 
   const filteredItems = menuItems.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -168,10 +134,11 @@ const MenuManagement = () => {
     };
 
     if (editingItem) {
-      setMenuItems(prev => prev.map(item => item.id === editingItem.id ? newItem : item));
+      const updatedItems = menuItems.map(item => item.id === editingItem.id ? newItem : item);
+      saveMenuItems(updatedItems);
       toast.success("Menu item updated successfully");
     } else {
-      setMenuItems(prev => [...prev, newItem]);
+      saveMenuItems([...menuItems, newItem]);
       toast.success("Menu item added successfully");
     }
 
@@ -180,14 +147,16 @@ const MenuManagement = () => {
   };
 
   const deleteItem = (id: string) => {
-    setMenuItems(prev => prev.filter(item => item.id !== id));
+    const updatedItems = menuItems.filter(item => item.id !== id);
+    saveMenuItems(updatedItems);
     toast.success("Menu item deleted");
   };
 
   const toggleAvailability = (id: string) => {
-    setMenuItems(prev => prev.map(item => 
+    const updatedItems = menuItems.map(item => 
       item.id === id ? { ...item, available: !item.available } : item
-    ));
+    );
+    saveMenuItems(updatedItems);
     const item = menuItems.find(i => i.id === id);
     toast.success(`${item?.name} marked as ${item?.available ? 'unavailable' : 'available'}`);
   };
@@ -227,21 +196,33 @@ const MenuManagement = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
       {/* Enhanced Header */}
-      <header className="glass-effect border-b-0 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center animate-fade-in">
-              <div className="p-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500">
-                <ChefHat className="h-8 w-8 text-white" />
-              </div>
-              <div className="ml-3">
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                  Menu Management
-                </h1>
-                <p className="text-xs text-gray-600">Manage your restaurant menu items</p>
+      <header className="bg-white/90 backdrop-blur-xl border-b sticky top-0 z-40">
+        <div className="px-4 sm:px-6">
+          <div className="flex justify-between items-center h-14 sm:h-16">
+            <div className="flex items-center">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => navigate('/')}
+                className="mr-3"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                <span className="hidden sm:inline">Back</span>
+              </Button>
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500">
+                  <ChefHat className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-lg sm:text-xl font-semibold">Menu Management</h1>
+                  <p className="text-xs text-gray-600 hidden sm:block">Manage your restaurant menu items</p>
+                </div>
               </div>
             </div>
-            <div className="flex items-center space-x-4 animate-fade-in">
+            <div className="flex items-center space-x-4">
+              <Badge variant="outline">
+                {menuItems.length} Items
+              </Badge>
               <Button onClick={() => setShowItemDialog(true)} className="bg-gradient-to-r from-purple-500 to-pink-500">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Item
@@ -251,9 +232,9 @@ const MenuManagement = () => {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto">
         {/* Search and Filter */}
-        <Card className="glass-effect mb-6 animate-fade-in-up">
+        <Card className="mb-6">
           <CardContent className="p-6">
             <div className="flex flex-col md:flex-row gap-4">
               <div className="flex-1">
@@ -284,100 +265,114 @@ const MenuManagement = () => {
           </CardContent>
         </Card>
 
-        {/* Menu Items Grid */}
-        <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="w-full">
-          <TabsList className="glass-effect mb-6">
-            <TabsTrigger value="all">All Items ({menuItems.length})</TabsTrigger>
-            {categories.map(category => (
-              <TabsTrigger key={category} value={category}>
-                {category} ({menuItems.filter(item => item.category === category).length})
-              </TabsTrigger>
-            ))}
-          </TabsList>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredItems.map((item) => (
-              <Card key={item.id} className="glass-effect hover-lift hover-glow animate-scale-in">
-                <CardHeader className="pb-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg mb-2">{item.name}</CardTitle>
-                      <p className="text-gray-600 text-sm mb-3">{item.description}</p>
-                      <div className="flex items-center space-x-2 mb-2">
-                        <DollarSign className="h-4 w-4 text-green-600" />
-                        <span className="font-bold text-lg text-green-600">₹{item.price}</span>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end space-y-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => toggleAvailability(item.id)}
-                        className={`p-2 ${item.available ? 'text-green-600' : 'text-red-600'}`}
-                      >
-                        {item.available ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                      </Button>
-                      <div className="flex items-center space-x-1">
-                        <Star className={`h-4 w-4 ${getPopularityColor(item.popularity)}`} />
-                        <span className={`text-sm ${getPopularityColor(item.popularity)}`}>
-                          {item.popularity}%
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Prep Time:</span>
-                      <span className="font-medium">{item.preparationTime} min</span>
-                    </div>
-                    
-                    <div>
-                      <Badge variant="outline" className="mb-2">
-                        {item.category}
-                      </Badge>
-                      <div className="flex flex-wrap gap-1">
-                        {item.dietary.map(diet => (
-                          <Badge key={diet} variant="secondary" className="text-xs">
-                            {diet}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    <Badge 
-                      variant={item.available ? "default" : "secondary"}
-                      className={item.available ? "bg-green-500" : "bg-red-500"}
-                    >
-                      {item.available ? "Available" : "Unavailable"}
-                    </Badge>
-                    
-                    <div className="flex gap-2 pt-2">
-                      <Button 
-                        size="sm" 
-                        onClick={() => openEditDialog(item)}
-                        className="flex-1"
-                      >
-                        <Edit3 className="h-4 w-4 mr-2" />
-                        Edit
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="destructive"
-                        onClick={() => deleteItem(item.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+        {/* Menu Items */}
+        {menuItems.length === 0 ? (
+          <div className="text-center py-12">
+            <ChefHat className="h-24 w-24 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-600 mb-2">No menu items yet</h3>
+            <p className="text-gray-500 mb-4">Start by adding your first menu item</p>
+            <Button onClick={() => setShowItemDialog(true)} className="bg-purple-500 hover:bg-purple-600">
+              <Plus className="h-4 w-4 mr-2" />
+              Add First Item
+            </Button>
           </div>
-        </Tabs>
+        ) : (
+          <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="w-full">
+            <TabsList className="mb-6">
+              <TabsTrigger value="all">All Items ({menuItems.length})</TabsTrigger>
+              {categories.map(category => (
+                <TabsTrigger key={category} value={category}>
+                  {category} ({menuItems.filter(item => item.category === category).length})
+                </TabsTrigger>
+              ))}
+            </TabsList>
 
-        {filteredItems.length === 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredItems.map((item) => (
+                <Card key={item.id} className="hover:shadow-lg transition-all">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <CardTitle className="text-lg mb-2">{item.name}</CardTitle>
+                        <p className="text-gray-600 text-sm mb-3">{item.description}</p>
+                        <div className="flex items-center space-x-2 mb-2">
+                          <DollarSign className="h-4 w-4 text-green-600" />
+                          <span className="font-bold text-lg text-green-600">₹{item.price}</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end space-y-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => toggleAvailability(item.id)}
+                          className={`p-2 ${item.available ? 'text-green-600' : 'text-red-600'}`}
+                        >
+                          {item.available ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                        </Button>
+                        {item.popularity > 0 && (
+                          <div className="flex items-center space-x-1">
+                            <Star className={`h-4 w-4 ${getPopularityColor(item.popularity)}`} />
+                            <span className={`text-sm ${getPopularityColor(item.popularity)}`}>
+                              {item.popularity}%
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Prep Time:</span>
+                        <span className="font-medium">{item.preparationTime} min</span>
+                      </div>
+                      
+                      <div>
+                        <Badge variant="outline" className="mb-2">
+                          {item.category}
+                        </Badge>
+                        <div className="flex flex-wrap gap-1">
+                          {item.dietary.map(diet => (
+                            <Badge key={diet} variant="secondary" className="text-xs">
+                              {diet}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <Badge 
+                        variant={item.available ? "default" : "secondary"}
+                        className={item.available ? "bg-green-500" : "bg-red-500"}
+                      >
+                        {item.available ? "Available" : "Unavailable"}
+                      </Badge>
+                      
+                      <div className="flex gap-2 pt-2">
+                        <Button 
+                          size="sm" 
+                          onClick={() => openEditDialog(item)}
+                          className="flex-1"
+                        >
+                          <Edit3 className="h-4 w-4 mr-2" />
+                          Edit
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="destructive"
+                          onClick={() => deleteItem(item.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </Tabs>
+        )}
+
+        {filteredItems.length === 0 && menuItems.length > 0 && (
           <div className="text-center py-12">
             <ChefHat className="h-24 w-24 text-gray-300 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-600 mb-2">No items found</h3>
@@ -388,7 +383,7 @@ const MenuManagement = () => {
 
       {/* Add/Edit Item Dialog */}
       <Dialog open={showItemDialog} onOpenChange={setShowItemDialog}>
-        <DialogContent className="glass-effect max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingItem ? 'Edit Menu Item' : 'Add New Menu Item'}</DialogTitle>
           </DialogHeader>

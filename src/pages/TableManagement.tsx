@@ -1,9 +1,9 @@
-
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -12,11 +12,11 @@ import {
   Calendar, 
   Clock, 
   Plus,
-  Edit3,
   Trash2,
   CheckCircle2,
   AlertCircle,
-  Coffee
+  Coffee,
+  ArrowLeft
 } from "lucide-react";
 
 interface Table {
@@ -41,28 +41,43 @@ interface Reservation {
 }
 
 const TableManagement = () => {
-  const [tables, setTables] = useState<Table[]>([
-    { id: 1, number: 1, capacity: 2, status: 'available' },
-    { id: 2, number: 2, capacity: 4, status: 'occupied', currentOrder: 'D-001', customerCount: 3 },
-    { id: 3, number: 3, capacity: 6, status: 'reserved', reservedBy: 'John Doe', reservedTime: new Date(Date.now() + 1800000) },
-    { id: 4, number: 4, capacity: 2, status: 'cleaning' },
-    { id: 5, number: 5, capacity: 4, status: 'available' },
-    { id: 6, number: 6, capacity: 8, status: 'available' },
-    { id: 7, number: 7, capacity: 4, status: 'occupied', currentOrder: 'D-003', customerCount: 4 },
-    { id: 8, number: 8, capacity: 2, status: 'available' },
-  ]);
-
-  const [reservations, setReservations] = useState<Reservation[]>([
-    {
-      id: '1',
-      tableNumber: 3,
-      customerName: 'John Doe',
-      customerPhone: '+91 9876543210',
-      partySize: 4,
-      reservationTime: new Date(Date.now() + 1800000),
-      notes: 'Anniversary dinner'
+  const navigate = useNavigate();
+  
+  // Get tables from localStorage or initialize with default setup
+  const [tables, setTables] = useState<Table[]>(() => {
+    const saved = localStorage.getItem('tables');
+    if (saved) {
+      const parsedTables = JSON.parse(saved);
+      // Convert date strings back to Date objects
+      return parsedTables.map((table: any) => ({
+        ...table,
+        reservedTime: table.reservedTime ? new Date(table.reservedTime) : undefined
+      }));
     }
-  ]);
+    // Default tables setup
+    return [
+      { id: 1, number: 1, capacity: 2, status: 'available' },
+      { id: 2, number: 2, capacity: 4, status: 'available' },
+      { id: 3, number: 3, capacity: 6, status: 'available' },
+      { id: 4, number: 4, capacity: 2, status: 'available' },
+      { id: 5, number: 5, capacity: 4, status: 'available' },
+      { id: 6, number: 6, capacity: 8, status: 'available' },
+      { id: 7, number: 7, capacity: 4, status: 'available' },
+      { id: 8, number: 8, capacity: 2, status: 'available' },
+    ];
+  });
+
+  const [reservations, setReservations] = useState<Reservation[]>(() => {
+    const saved = localStorage.getItem('reservations');
+    if (saved) {
+      const parsedReservations = JSON.parse(saved);
+      return parsedReservations.map((res: any) => ({
+        ...res,
+        reservationTime: new Date(res.reservationTime)
+      }));
+    }
+    return [];
+  });
 
   const [showReservationDialog, setShowReservationDialog] = useState(false);
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
@@ -74,12 +89,33 @@ const TableManagement = () => {
     notes: ''
   });
 
+  // Save to localStorage
+  const saveTables = (newTables: Table[]) => {
+    setTables(newTables);
+    localStorage.setItem('tables', JSON.stringify(newTables));
+  };
+
+  const saveReservations = (newReservations: Reservation[]) => {
+    setReservations(newReservations);
+    localStorage.setItem('reservations', JSON.stringify(newReservations));
+  };
+
   const updateTableStatus = (tableId: number, status: Table['status']) => {
-    setTables(prev => prev.map(table => 
+    const updatedTables = tables.map(table => 
       table.id === tableId 
-        ? { ...table, status, ...(status === 'available' ? { currentOrder: undefined, customerCount: undefined } : {}) }
+        ? { 
+            ...table, 
+            status, 
+            ...(status === 'available' ? { 
+              currentOrder: undefined, 
+              customerCount: undefined,
+              reservedBy: undefined,
+              reservedTime: undefined
+            } : {}) 
+          }
         : table
-    ));
+    );
+    saveTables(updatedTables);
     
     toast.success(`Table ${tables.find(t => t.id === tableId)?.number} marked as ${status}`);
   };
@@ -120,14 +156,19 @@ const TableManagement = () => {
       notes: reservationForm.notes
     };
 
-    setReservations(prev => [...prev, newReservation]);
-    updateTableStatus(tables.find(t => t.number === selectedTable)?.id || 0, 'reserved');
+    saveReservations([...reservations, newReservation]);
     
-    setTables(prev => prev.map(table => 
+    const updatedTables = tables.map(table => 
       table.number === selectedTable 
-        ? { ...table, reservedBy: reservationForm.customerName, reservedTime: new Date(reservationForm.reservationTime) }
+        ? { 
+            ...table, 
+            status: 'reserved' as const,
+            reservedBy: reservationForm.customerName, 
+            reservedTime: new Date(reservationForm.reservationTime) 
+          }
         : table
-    ));
+    );
+    saveTables(updatedTables);
 
     setReservationForm({
       customerName: '',
@@ -145,8 +186,11 @@ const TableManagement = () => {
   const cancelReservation = (reservationId: string) => {
     const reservation = reservations.find(r => r.id === reservationId);
     if (reservation) {
-      updateTableStatus(tables.find(t => t.number === reservation.tableNumber)?.id || 0, 'available');
-      setReservations(prev => prev.filter(r => r.id !== reservationId));
+      const tableToUpdate = tables.find(t => t.number === reservation.tableNumber);
+      if (tableToUpdate) {
+        updateTableStatus(tableToUpdate.id, 'available');
+      }
+      saveReservations(reservations.filter(r => r.id !== reservationId));
       toast.success("Reservation cancelled");
     }
   };
@@ -154,21 +198,30 @@ const TableManagement = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
       {/* Enhanced Header */}
-      <header className="glass-effect border-b-0 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center animate-fade-in">
-              <div className="p-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500">
-                <Users className="h-8 w-8 text-white" />
-              </div>
-              <div className="ml-3">
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  Table Management
-                </h1>
-                <p className="text-xs text-gray-600">Real-time Table Status & Reservations</p>
+      <header className="bg-white/90 backdrop-blur-xl border-b sticky top-0 z-40">
+        <div className="px-4 sm:px-6">
+          <div className="flex justify-between items-center h-14 sm:h-16">
+            <div className="flex items-center">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => navigate('/')}
+                className="mr-3"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                <span className="hidden sm:inline">Back</span>
+              </Button>
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500">
+                  <Users className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-lg sm:text-xl font-semibold">Table Management</h1>
+                  <p className="text-xs text-gray-600 hidden sm:block">Real-time Table Status & Reservations</p>
+                </div>
               </div>
             </div>
-            <div className="flex items-center space-x-4 animate-fade-in">
+            <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-4 text-sm text-gray-600">
                 <div className="flex items-center space-x-1">
                   <div className="w-3 h-3 rounded-full bg-green-500"></div>
@@ -184,11 +237,11 @@ const TableManagement = () => {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Table Layout */}
           <div className="lg:col-span-2">
-            <Card className="glass-effect animate-fade-in-up">
+            <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <div className="p-2 rounded-lg bg-gradient-to-r from-blue-500 to-purple-500">
@@ -205,9 +258,7 @@ const TableManagement = () => {
                     return (
                       <Card 
                         key={table.id} 
-                        className={`hover-lift cursor-pointer transition-all duration-300 border-2 ${
-                          table.status === 'available' ? 'hover:border-green-300' : ''
-                        }`}
+                        className="hover:shadow-lg cursor-pointer transition-all duration-300 border-2"
                       >
                         <CardContent className="p-4 text-center">
                           <div className={`w-16 h-16 rounded-full ${getStatusColor(table.status)} mx-auto mb-3 flex items-center justify-center`}>
@@ -305,7 +356,7 @@ const TableManagement = () => {
 
           {/* Reservations Panel */}
           <div className="lg:col-span-1">
-            <Card className="glass-effect animate-slide-in-right">
+            <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -371,7 +422,7 @@ const TableManagement = () => {
 
       {/* Reservation Dialog */}
       <Dialog open={showReservationDialog} onOpenChange={setShowReservationDialog}>
-        <DialogContent className="glass-effect">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Make Reservation</DialogTitle>
           </DialogHeader>

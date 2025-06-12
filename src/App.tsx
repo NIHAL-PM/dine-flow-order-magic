@@ -12,6 +12,8 @@ import KitchenDisplay from "./pages/KitchenDisplay";
 import TableManagement from "./pages/TableManagement";
 import MenuManagement from "./pages/MenuManagement";
 import Billing from "./pages/Billing";
+import Reports from "./pages/Reports";
+import Settings from "./pages/Settings";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +31,8 @@ const App = () => (
             <Route path="/kitchen" element={<KitchenDisplay />} />
             <Route path="/tables" element={<TableManagement />} />
             <Route path="/menu" element={<MenuManagement />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
