@@ -14,11 +14,14 @@ import {
   Users,
   Car,
   Store,
-  Bell
+  Bell,
+  ArrowLeft
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useOrderContext } from "@/contexts/OrderContext";
 
 const KitchenDisplay = () => {
+  const navigate = useNavigate();
   const { savedOrders, updateOrderStatus } = useOrderContext();
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'dine-in' | 'takeout' | 'delivery'>('all');
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -31,9 +34,26 @@ const KitchenDisplay = () => {
     return () => clearInterval(timer);
   }, []);
 
+  // Auto-confirm saved orders (simulate kitchen receiving orders)
+  useEffect(() => {
+    const savedOrdersToConfirm = savedOrders.filter(order => order.status === 'saved');
+    savedOrdersToConfirm.forEach(order => {
+      setTimeout(() => {
+        updateOrderStatus(order.id, 'confirmed');
+      }, 1000);
+    });
+  }, [savedOrders, updateOrderStatus]);
+
   const updateItemStatus = (orderId: string, newStatus: 'confirmed' | 'preparing' | 'ready') => {
     updateOrderStatus(orderId, newStatus);
-    toast.success(`Order marked as ${newStatus}`);
+    
+    const statusMessages = {
+      confirmed: 'Order confirmed by kitchen',
+      preparing: 'Order is being prepared',
+      ready: 'Order is ready for serving'
+    };
+    
+    toast.success(statusMessages[newStatus]);
   };
 
   const getOrderAge = (timeOrdered: Date) => {
@@ -77,21 +97,32 @@ const KitchenDisplay = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
       {/* Enhanced Header */}
-      <header className="glass-effect border-b-0 sticky top-0 z-40">
+      <header className="bg-white/90 backdrop-blur-xl border-b sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center animate-fade-in">
-              <div className="p-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500">
-                <ChefHat className="h-8 w-8 text-white" />
-              </div>
-              <div className="ml-3">
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                  Kitchen Display
-                </h1>
-                <p className="text-xs text-gray-600">Real-time Order Management</p>
+            <div className="flex items-center">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => navigate('/')}
+                className="mr-3"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                <span className="hidden sm:inline">Back</span>
+              </Button>
+              <div className="flex items-center">
+                <div className="p-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500">
+                  <ChefHat className="h-8 w-8 text-white" />
+                </div>
+                <div className="ml-3">
+                  <h1 className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                    Kitchen Display
+                  </h1>
+                  <p className="text-xs text-gray-600">Real-time Order Management</p>
+                </div>
               </div>
             </div>
-            <div className="flex items-center space-x-4 animate-fade-in">
+            <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2 text-sm text-gray-600">
                 <Bell className="h-4 w-4" />
                 <span>{filteredOrders.length} Active Orders</span>
@@ -107,7 +138,7 @@ const KitchenDisplay = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Filter Tabs */}
         <Tabs value={selectedFilter} onValueChange={(value) => setSelectedFilter(value as any)} className="mb-6">
-          <TabsList className="glass-effect">
+          <TabsList className="bg-white/80 backdrop-blur-sm">
             <TabsTrigger value="all">All Orders ({filteredOrders.length})</TabsTrigger>
             <TabsTrigger value="dine-in">
               Dine-in ({kitchenOrders.filter(o => o.orderType === 'dine-in').length})
@@ -126,7 +157,10 @@ const KitchenDisplay = () => {
           <div className="text-center py-12">
             <ChefHat className="h-24 w-24 text-gray-300 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-600 mb-2">No Active Orders</h3>
-            <p className="text-gray-500">Orders will appear here when confirmed for kitchen</p>
+            <p className="text-gray-500 mb-4">Orders will appear here when confirmed for kitchen</p>
+            <Button onClick={() => navigate('/order-taking')} className="bg-blue-500 hover:bg-blue-600">
+              Take New Order
+            </Button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -137,7 +171,7 @@ const KitchenDisplay = () => {
               return (
                 <Card 
                   key={order.id} 
-                  className={`hover-lift animate-scale-in border-2 ${getOrderPriorityColor(order.priority, age, order.status)}`}
+                  className={`hover:shadow-lg transition-all border-2 ${getOrderPriorityColor(order.priority, age, order.status)}`}
                 >
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
@@ -221,8 +255,16 @@ const KitchenDisplay = () => {
                             Ready for Serving
                           </Badge>
                           <p className="text-xs text-center text-gray-500 mt-1">
-                            Waiting for billing completion
+                            Go to billing to complete order
                           </p>
+                          <Button
+                            onClick={() => navigate('/billing')}
+                            variant="outline"
+                            size="sm"
+                            className="w-full mt-2"
+                          >
+                            Go to Billing
+                          </Button>
                         </div>
                       )}
                     </div>
