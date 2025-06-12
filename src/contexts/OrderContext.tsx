@@ -28,6 +28,7 @@ export interface SavedOrder {
 
 interface OrderContextType {
   savedOrders: SavedOrder[];
+  completedOrders: SavedOrder[];
   addOrder: (order: Omit<SavedOrder, 'id' | 'timestamp' | 'status' | 'priority'>) => void;
   updateOrderStatus: (orderId: string, status: SavedOrder['status']) => void;
   getOrdersByStatus: (status: SavedOrder['status']) => SavedOrder[];
@@ -48,6 +49,7 @@ export const useOrderContext = () => {
 
 export const OrderProvider = ({ children }: { children: ReactNode }) => {
   const [savedOrders, setSavedOrders] = useState<SavedOrder[]>([]);
+  const [completedOrders, setCompletedOrders] = useState<SavedOrder[]>([]);
 
   const addOrder = (orderData: Omit<SavedOrder, 'id' | 'timestamp' | 'status' | 'priority'>) => {
     const newOrder: SavedOrder = {
@@ -62,14 +64,31 @@ export const OrderProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const updateOrderStatus = (orderId: string, status: SavedOrder['status']) => {
-    setSavedOrders(prev =>
-      prev.map(order =>
-        order.id === orderId ? { ...order, status } : order
-      )
-    );
+    if (status === 'completed') {
+      // Move order from savedOrders to completedOrders
+      setSavedOrders(prev => {
+        const orderToComplete = prev.find(order => order.id === orderId);
+        if (orderToComplete) {
+          const updatedOrder = { ...orderToComplete, status };
+          setCompletedOrders(completedPrev => [...completedPrev, updatedOrder]);
+          return prev.filter(order => order.id !== orderId);
+        }
+        return prev;
+      });
+    } else {
+      // Update status in savedOrders
+      setSavedOrders(prev =>
+        prev.map(order =>
+          order.id === orderId ? { ...order, status } : order
+        )
+      );
+    }
   };
 
   const getOrdersByStatus = (status: SavedOrder['status']) => {
+    if (status === 'completed') {
+      return completedOrders;
+    }
     return savedOrders.filter(order => order.status === status);
   };
 
@@ -78,16 +97,19 @@ export const OrderProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const getOrderById = (orderId: string) => {
-    return savedOrders.find(order => order.id === orderId);
+    return savedOrders.find(order => order.id === orderId) || 
+           completedOrders.find(order => order.id === orderId);
   };
 
   const deleteOrder = (orderId: string) => {
     setSavedOrders(prev => prev.filter(order => order.id !== orderId));
+    setCompletedOrders(prev => prev.filter(order => order.id !== orderId));
   };
 
   return (
     <OrderContext.Provider value={{
       savedOrders,
+      completedOrders,
       addOrder,
       updateOrderStatus,
       getOrdersByStatus,
