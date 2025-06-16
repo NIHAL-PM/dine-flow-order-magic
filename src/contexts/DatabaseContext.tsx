@@ -28,6 +28,14 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const [pendingSync, setPendingSync] = useState(false);
 
   useEffect(() => {
+    // Initialize database on mount
+    try {
+      db.initialize();
+      console.log('Database initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize database:', error);
+    }
+
     const handleOnline = () => {
       setIsOnline(true);
       syncData();
@@ -38,6 +46,11 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    // Initial sync if online
+    if (navigator.onLine) {
+      syncData();
+    }
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -45,11 +58,14 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const syncData = async () => {
+    if (!navigator.onLine) return;
+    
     setPendingSync(true);
     try {
-      // Simulate sync process
+      // Simulate sync process - in real app this would sync with server
       await new Promise(resolve => setTimeout(resolve, 1000));
       setLastSync(new Date());
+      console.log('Data synced successfully');
     } catch (error) {
       console.error('Sync failed:', error);
     } finally {
@@ -58,7 +74,12 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const exportData = () => {
-    return db.exportData();
+    try {
+      return db.exportData();
+    } catch (error) {
+      console.error('Failed to export data:', error);
+      throw new Error('Failed to export data');
+    }
   };
 
   const importData = async (data: string) => {
@@ -66,13 +87,19 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       db.importData(data);
       await syncData();
     } catch (error) {
+      console.error('Failed to import data:', error);
       throw new Error('Failed to import data');
     }
   };
 
   const clearAllData = () => {
-    db.clearAllData();
-    setLastSync(null);
+    try {
+      db.clearAllData();
+      setLastSync(null);
+      console.log('All data cleared');
+    } catch (error) {
+      console.error('Failed to clear data:', error);
+    }
   };
 
   return (

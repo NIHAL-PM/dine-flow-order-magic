@@ -10,6 +10,7 @@ import { NotificationProvider } from "./contexts/NotificationContext";
 import { OrderProvider } from "./contexts/OrderContext";
 import { TableProvider } from "./contexts/TableContext";
 import { MenuProvider } from "./contexts/MenuContext";
+import OfflineIndicator from "./components/OfflineIndicator";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import OrderTaking from "./pages/OrderTaking";
@@ -33,6 +34,7 @@ const App = () => (
                 <OrderProvider>
                   <Toaster />
                   <Sonner />
+                  <OfflineIndicator />
                   <BrowserRouter>
                     <Routes>
                       <Route path="/" element={<Index />} />

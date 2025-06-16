@@ -1,7 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { toast } from 'sonner';
-import { db } from '@/services/database';
 
 interface Notification {
   id: string;
@@ -41,15 +40,21 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     // Listen for database changes to trigger notifications
     const handleDatabaseUpdate = (event: CustomEvent) => {
-      const { table, data } = event.detail;
-      
-      switch (table) {
-        case 'orders':
-          handleOrderNotifications(data);
-          break;
-        case 'tables':
-          handleTableNotifications(data);
-          break;
+      try {
+        const { table, data } = event.detail;
+        
+        switch (table) {
+          case 'orders':
+            handleOrderNotifications(data);
+            break;
+          case 'tables':
+            handleTableNotifications(data);
+            break;
+          default:
+            break;
+        }
+      } catch (error) {
+        console.error('Error handling database update notification:', error);
       }
     };
 
@@ -61,63 +66,72 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const handleOrderNotifications = (orders: any[]) => {
-    const newOrders = orders.filter(order => {
-      const orderTime = new Date(order.timestamp);
-      const fiveSecondsAgo = new Date(Date.now() - 5000);
-      return orderTime > fiveSecondsAgo && order.status === 'saved';
-    });
-
-    newOrders.forEach(order => {
-      addNotification({
-        type: 'order',
-        title: 'New Order Received',
-        message: `Order ${order.tokenNumber} for ${order.orderType}`,
-        actionUrl: '/kitchen'
+    try {
+      const newOrders = orders.filter(order => {
+        const orderTime = new Date(order.timestamp);
+        const fiveSecondsAgo = new Date(Date.now() - 5000);
+        return orderTime > fiveSecondsAgo && order.status === 'saved';
       });
-    });
 
-    const readyOrders = orders.filter(order => {
-      const updateTime = new Date(order.updatedAt || order.timestamp);
-      const fiveSecondsAgo = new Date(Date.now() - 5000);
-      return updateTime > fiveSecondsAgo && order.status === 'ready';
-    });
-
-    readyOrders.forEach(order => {
-      addNotification({
-        type: 'kitchen',
-        title: 'Order Ready',
-        message: `Order ${order.tokenNumber} is ready for serving`,
-        actionUrl: '/billing'
+      newOrders.forEach(order => {
+        addNotification({
+          type: 'order',
+          title: 'New Order Received',
+          message: `Order ${order.tokenNumber} for ${order.orderType}`,
+          actionUrl: '/kitchen'
+        });
       });
-    });
+
+      const readyOrders = orders.filter(order => {
+        const updateTime = new Date(order.updatedAt || order.timestamp);
+        const fiveSecondsAgo = new Date(Date.now() - 5000);
+        return updateTime > fiveSecondsAgo && order.status === 'ready';
+      });
+
+      readyOrders.forEach(order => {
+        addNotification({
+          type: 'kitchen',
+          title: 'Order Ready',
+          message: `Order ${order.tokenNumber} is ready for serving`,
+          actionUrl: '/billing'
+        });
+      });
+    } catch (error) {
+      console.error('Error handling order notifications:', error);
+    }
   };
 
   const handleTableNotifications = (tables: any[]) => {
     // Handle table-related notifications if needed
+    console.log('Table update received:', tables.length);
   };
 
   const addNotification = (notificationData: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
-    const newNotification: Notification = {
-      ...notificationData,
-      id: `notification_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      timestamp: new Date(),
-      read: false
-    };
+    try {
+      const newNotification: Notification = {
+        ...notificationData,
+        id: `notification_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        timestamp: new Date(),
+        read: false
+      };
 
-    setNotifications(prev => [newNotification, ...prev].slice(0, 50)); // Keep last 50
-    
-    // Show toast notification
-    toast.success(notificationData.title, {
-      description: notificationData.message,
-      action: notificationData.actionUrl ? {
-        label: 'View',
-        onClick: () => window.location.href = notificationData.actionUrl!
-      } : undefined
-    });
+      setNotifications(prev => [newNotification, ...prev].slice(0, 50)); // Keep last 50
+      
+      // Show toast notification
+      toast.success(notificationData.title, {
+        description: notificationData.message,
+        action: notificationData.actionUrl ? {
+          label: 'View',
+          onClick: () => window.location.href = notificationData.actionUrl!
+        } : undefined
+      });
 
-    // Play sound if enabled
-    if (playSound) {
-      playNotificationSound();
+      // Play sound if enabled
+      if (playSound) {
+        playNotificationSound();
+      }
+    } catch (error) {
+      console.error('Error adding notification:', error);
     }
   };
 
@@ -147,6 +161,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
       });
     } catch (error) {
       // Ignore sound errors
+      console.log('Sound playback not available');
     }
   };
 

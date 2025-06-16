@@ -6,7 +6,19 @@ import { useDatabaseContext } from '@/contexts/DatabaseContext';
 
 const OfflineIndicator = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const { lastSync, pendingSync } = useDatabaseContext();
+  
+  // Safely access the database context
+  let lastSync = null;
+  let pendingSync = false;
+  
+  try {
+    const { lastSync: dbLastSync, pendingSync: dbPendingSync } = useDatabaseContext();
+    lastSync = dbLastSync;
+    pendingSync = dbPendingSync;
+  } catch (error) {
+    // If context is not available, use default values
+    console.log('Database context not available, using defaults');
+  }
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
