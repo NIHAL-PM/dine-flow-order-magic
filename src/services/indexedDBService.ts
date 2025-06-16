@@ -58,6 +58,11 @@ class IndexedDBService {
           const customerStore = db.createObjectStore('customers', { keyPath: 'id' });
           customerStore.createIndex('phone', 'phone', { unique: false });
         }
+
+        if (!db.objectStoreNames.contains('inventory')) {
+          const inventoryStore = db.createObjectStore('inventory', { keyPath: 'id' });
+          inventoryStore.createIndex('category', 'category', { unique: false });
+        }
       };
     });
   }
@@ -65,6 +70,10 @@ class IndexedDBService {
   async add(storeName: string, data: any): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.db) return reject(new Error('Database not initialized'));
+
+      if (!this.db.objectStoreNames.contains(storeName)) {
+        return reject(new Error(`Object store ${storeName} does not exist`));
+      }
 
       const transaction = this.db.transaction([storeName], 'readwrite');
       const store = transaction.objectStore(storeName);
@@ -79,6 +88,10 @@ class IndexedDBService {
     return new Promise((resolve, reject) => {
       if (!this.db) return reject(new Error('Database not initialized'));
 
+      if (!this.db.objectStoreNames.contains(storeName)) {
+        return reject(new Error(`Object store ${storeName} does not exist`));
+      }
+
       const transaction = this.db.transaction([storeName], 'readwrite');
       const store = transaction.objectStore(storeName);
       const request = store.put(data);
@@ -91,6 +104,10 @@ class IndexedDBService {
   async get(storeName: string, id: string): Promise<any> {
     return new Promise((resolve, reject) => {
       if (!this.db) return reject(new Error('Database not initialized'));
+
+      if (!this.db.objectStoreNames.contains(storeName)) {
+        return reject(new Error(`Object store ${storeName} does not exist`));
+      }
 
       const transaction = this.db.transaction([storeName], 'readonly');
       const store = transaction.objectStore(storeName);
@@ -105,6 +122,10 @@ class IndexedDBService {
     return new Promise((resolve, reject) => {
       if (!this.db) return reject(new Error('Database not initialized'));
 
+      if (!this.db.objectStoreNames.contains(storeName)) {
+        return reject(new Error(`Object store ${storeName} does not exist`));
+      }
+
       const transaction = this.db.transaction([storeName], 'readonly');
       const store = transaction.objectStore(storeName);
       const request = store.getAll();
@@ -118,6 +139,10 @@ class IndexedDBService {
     return new Promise((resolve, reject) => {
       if (!this.db) return reject(new Error('Database not initialized'));
 
+      if (!this.db.objectStoreNames.contains(storeName)) {
+        return reject(new Error(`Object store ${storeName} does not exist`));
+      }
+
       const transaction = this.db.transaction([storeName], 'readwrite');
       const store = transaction.objectStore(storeName);
       const request = store.delete(id);
@@ -130,6 +155,10 @@ class IndexedDBService {
   async clear(storeName: string): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.db) return reject(new Error('Database not initialized'));
+
+      if (!this.db.objectStoreNames.contains(storeName)) {
+        return reject(new Error(`Object store ${storeName} does not exist`));
+      }
 
       const transaction = this.db.transaction([storeName], 'readwrite');
       const store = transaction.objectStore(storeName);

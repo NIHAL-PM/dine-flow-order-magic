@@ -38,12 +38,16 @@ class EnhancedDatabaseService {
     const tables = ['orders', 'menuItems', 'categories', 'tables', 'settings', 'transactions', 'reservations', 'customers', 'inventory'];
     
     for (const table of tables) {
-      const existing = await indexedDBService.getAll(table);
-      if (existing.length === 0) {
-        // Only initialize default settings, everything else starts empty
-        if (table === 'settings') {
-          await this.initializeDefaultSettings();
+      try {
+        const existing = await indexedDBService.getAll(table);
+        if (existing.length === 0) {
+          // Only initialize default settings, everything else starts empty
+          if (table === 'settings') {
+            await this.initializeDefaultSettings();
+          }
         }
+      } catch (error) {
+        console.warn(`Could not check existing data for table ${table}:`, error);
       }
     }
   }
@@ -71,7 +75,9 @@ class EnhancedDatabaseService {
           printLogo: false,
           printFooter: true,
           autoKotPrint: true,
-          autoBillPrint: false
+          autoBillPrint: false,
+          kotCopies: 1,
+          billCopies: 1
         }
       },
       {
@@ -81,7 +87,8 @@ class EnhancedDatabaseService {
           defaultPreparationTime: 15,
           allowEditAfterConfirm: true,
           requireWaiterName: false,
-          enablePriority: true
+          enablePriority: true,
+          maxOrdersPerTable: 5
         }
       },
       {
@@ -92,13 +99,18 @@ class EnhancedDatabaseService {
           readyOrderAlert: true,
           lowStockAlert: true,
           reservationReminder: true,
-          soundVolume: 0.8
+          soundVolume: 0.8,
+          emailNotifications: false
         }
       }
     ];
 
     for (const setting of defaultSettings) {
-      await indexedDBService.put('settings', setting);
+      try {
+        await indexedDBService.put('settings', setting);
+      } catch (error) {
+        console.warn('Could not initialize default setting:', setting.key, error);
+      }
     }
   }
 

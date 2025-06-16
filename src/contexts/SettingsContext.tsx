@@ -130,10 +130,10 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       
       if (settingsMap.size > 0) {
         setSettings({
-          restaurant: settingsMap.get('restaurant') || defaultSettings.restaurant,
-          printing: settingsMap.get('printing') || defaultSettings.printing,
-          orders: settingsMap.get('orders') || defaultSettings.orders,
-          notifications: settingsMap.get('notifications') || defaultSettings.notifications
+          restaurant: { ...defaultSettings.restaurant, ...(settingsMap.get('restaurant') || {}) },
+          printing: { ...defaultSettings.printing, ...(settingsMap.get('printing') || {}) },
+          orders: { ...defaultSettings.orders, ...(settingsMap.get('orders') || {}) },
+          notifications: { ...defaultSettings.notifications, ...(settingsMap.get('notifications') || {}) }
         });
       }
     } catch (error) {
