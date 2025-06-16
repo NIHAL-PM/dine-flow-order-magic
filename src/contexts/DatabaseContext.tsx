@@ -1,15 +1,17 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { db } from '@/services/database';
+import { enhancedDB } from '@/services/enhancedDatabase';
+import { syncService } from '@/services/syncService';
 
 interface DatabaseContextType {
   isOnline: boolean;
   lastSync: Date | null;
   pendingSync: boolean;
   syncData: () => Promise<void>;
-  exportData: () => string;
+  exportData: () => Promise<string>;
   importData: (data: string) => Promise<void>;
-  clearAllData: () => void;
+  clearAllData: () => Promise<void>;
+  initialized: boolean;
 }
 
 const DatabaseContext = createContext<DatabaseContextType | undefined>(undefined);
@@ -26,32 +28,37 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [pendingSync, setPendingSync] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    // Initialize database on mount
-    try {
-      db.initialize();
-      console.log('Database initialized successfully');
-    } catch (error) {
-      console.error('Failed to initialize database:', error);
-    }
-
-    const handleOnline = () => {
-      setIsOnline(true);
-      syncData();
+    const initializeDatabase = async () => {
+      try {
+        await enhancedDB.initialize();
+        setInitialized(true);
+        console.log('Database context initialized successfully');
+      } catch (error) {
+        console.error('Failed to initialize database context:', error);
+      }
     };
-    
+
+    initializeDatabase();
+
+    const handleSyncStatusChange = (event: CustomEvent) => {
+      const { isOnline, lastSync, queueLength } = event.detail;
+      setIsOnline(isOnline);
+      setLastSync(lastSync);
+      setPendingSync(queueLength > 0);
+    };
+
+    const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
 
+    window.addEventListener('syncStatusChange', handleSyncStatusChange as EventListener);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Initial sync if online
-    if (navigator.onLine) {
-      syncData();
-    }
-
     return () => {
+      window.removeEventListener('syncStatusChange', handleSyncStatusChange as EventListener);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
@@ -62,10 +69,10 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     
     setPendingSync(true);
     try {
-      // Simulate sync process - in real app this would sync with server
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setLastSync(new Date());
-      console.log('Data synced successfully');
+      // Get current sync status
+      const status = enhancedDB.getSyncStatus();
+      setLastSync(status.lastSync);
+      console.log('Data sync completed');
     } catch (error) {
       console.error('Sync failed:', error);
     } finally {
@@ -73,9 +80,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const exportData = () => {
+  const exportData = async () => {
     try {
-      return db.exportData();
+      return await enhancedDB.exportData();
     } catch (error) {
       console.error('Failed to export data:', error);
       throw new Error('Failed to export data');
@@ -84,7 +91,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
   const importData = async (data: string) => {
     try {
-      db.importData(data);
+      await enhancedDB.importData(data);
       await syncData();
     } catch (error) {
       console.error('Failed to import data:', error);
@@ -92,13 +99,14 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const clearAllData = () => {
+  const clearAllData = async () => {
     try {
-      db.clearAllData();
+      await enhancedDB.clearAllData();
       setLastSync(null);
       console.log('All data cleared');
     } catch (error) {
       console.error('Failed to clear data:', error);
+      throw error;
     }
   };
 
@@ -110,7 +118,8 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       syncData,
       exportData,
       importData,
-      clearAllData
+      clearAllData,
+      initialized
     }}>
       {children}
     </DatabaseContext.Provider>

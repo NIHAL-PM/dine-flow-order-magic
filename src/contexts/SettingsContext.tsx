@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { db } from '@/services/database';
+import { enhancedDB } from '@/services/enhancedDatabase';
 
 interface RestaurantSettings {
   name: string;
@@ -9,6 +9,9 @@ interface RestaurantSettings {
   email: string;
   currency: string;
   timezone: string;
+  taxRate: number;
+  serviceCharge?: number;
+  logo?: string;
 }
 
 interface PrintingSettings {
@@ -17,6 +20,10 @@ interface PrintingSettings {
   paperSize: string;
   printLogo: boolean;
   printFooter: boolean;
+  autoKotPrint: boolean;
+  autoBillPrint: boolean;
+  kotCopies: number;
+  billCopies: number;
 }
 
 interface OrderSettings {
@@ -24,6 +31,8 @@ interface OrderSettings {
   defaultPreparationTime: number;
   allowEditAfterConfirm: boolean;
   requireWaiterName: boolean;
+  enablePriority: boolean;
+  maxOrdersPerTable: number;
 }
 
 interface NotificationSettings {
@@ -31,6 +40,9 @@ interface NotificationSettings {
   newOrderAlert: boolean;
   readyOrderAlert: boolean;
   lowStockAlert: boolean;
+  reservationReminder: boolean;
+  soundVolume: number;
+  emailNotifications: boolean;
 }
 
 interface Settings {
@@ -42,13 +54,16 @@ interface Settings {
 
 interface SettingsContextType {
   settings: Settings;
-  updateRestaurantSettings: (updates: Partial<RestaurantSettings>) => void;
-  updatePrintingSettings: (updates: Partial<PrintingSettings>) => void;
-  updateOrderSettings: (updates: Partial<OrderSettings>) => void;
-  updateNotificationSettings: (updates: Partial<NotificationSettings>) => void;
-  resetToDefaults: () => void;
-  exportSettings: () => string;
-  importSettings: (settingsJson: string) => void;
+  updateRestaurantSettings: (updates: Partial<RestaurantSettings>) => Promise<void>;
+  updatePrintingSettings: (updates: Partial<PrintingSettings>) => Promise<void>;
+  updateOrderSettings: (updates: Partial<OrderSettings>) => Promise<void>;
+  updateNotificationSettings: (updates: Partial<NotificationSettings>) => Promise<void>;
+  getSetting: (key: string) => any;
+  setSetting: (key: string, value: any) => Promise<void>;
+  resetToDefaults: () => Promise<void>;
+  exportSettings: () => Promise<string>;
+  importSettings: (settingsJson: string) => Promise<void>;
+  refreshSettings: () => Promise<void>;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -64,131 +79,174 @@ export const useSettingsContext = () => {
 export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   const [settings, setSettings] = useState<Settings>({
     restaurant: {
-      name: 'Restaurant Management System',
-      address: '123 Main Street, City',
-      phone: '+1 234 567 8900',
-      email: 'info@restaurant.com',
+      name: '',
+      address: '',
+      phone: '',
+      email: '',
       currency: 'INR',
-      timezone: 'Asia/Kolkata'
+      timezone: 'Asia/Kolkata',
+      taxRate: 18
     },
     printing: {
-      enabled: true,
-      printerName: 'Default Thermal Printer',
+      enabled: false,
+      printerName: '',
       paperSize: '80mm',
-      printLogo: true,
-      printFooter: true
+      printLogo: false,
+      printFooter: true,
+      autoKotPrint: true,
+      autoBillPrint: false,
+      kotCopies: 1,
+      billCopies: 1
     },
     orders: {
       autoConfirm: false,
       defaultPreparationTime: 15,
       allowEditAfterConfirm: true,
-      requireWaiterName: false
+      requireWaiterName: false,
+      enablePriority: true,
+      maxOrdersPerTable: 5
     },
     notifications: {
       soundEnabled: true,
       newOrderAlert: true,
       readyOrderAlert: true,
-      lowStockAlert: true
+      lowStockAlert: true,
+      reservationReminder: true,
+      soundVolume: 0.8,
+      emailNotifications: false
     }
   });
 
   useEffect(() => {
-    // Load settings from database
-    const savedSettings = db.getData('settings');
-    if (savedSettings && Object.keys(savedSettings).length > 0) {
-      setSettings(savedSettings);
-    }
-
-    // Subscribe to settings changes
-    const unsubscribe = db.subscribe('settings', (newSettings) => {
-      if (newSettings && Object.keys(newSettings).length > 0) {
-        setSettings(newSettings);
-      }
-    });
-
-    return unsubscribe;
+    refreshSettings();
   }, []);
 
-  const saveSettings = (newSettings: Settings) => {
-    setSettings(newSettings);
-    db.setData('settings', newSettings);
-  };
-
-  const updateRestaurantSettings = (updates: Partial<RestaurantSettings>) => {
-    const newSettings = {
-      ...settings,
-      restaurant: { ...settings.restaurant, ...updates }
-    };
-    saveSettings(newSettings);
-  };
-
-  const updatePrintingSettings = (updates: Partial<PrintingSettings>) => {
-    const newSettings = {
-      ...settings,
-      printing: { ...settings.printing, ...updates }
-    };
-    saveSettings(newSettings);
-  };
-
-  const updateOrderSettings = (updates: Partial<OrderSettings>) => {
-    const newSettings = {
-      ...settings,
-      orders: { ...settings.orders, ...updates }
-    };
-    saveSettings(newSettings);
-  };
-
-  const updateNotificationSettings = (updates: Partial<NotificationSettings>) => {
-    const newSettings = {
-      ...settings,
-      notifications: { ...settings.notifications, ...updates }
-    };
-    saveSettings(newSettings);
-  };
-
-  const resetToDefaults = () => {
-    const defaultSettings: Settings = {
-      restaurant: {
-        name: 'Restaurant Management System',
-        address: '123 Main Street, City',
-        phone: '+1 234 567 8900',
-        email: 'info@restaurant.com',
-        currency: 'INR',
-        timezone: 'Asia/Kolkata'
-      },
-      printing: {
-        enabled: true,
-        printerName: 'Default Thermal Printer',
-        paperSize: '80mm',
-        printLogo: true,
-        printFooter: true
-      },
-      orders: {
-        autoConfirm: false,
-        defaultPreparationTime: 15,
-        allowEditAfterConfirm: true,
-        requireWaiterName: false
-      },
-      notifications: {
-        soundEnabled: true,
-        newOrderAlert: true,
-        readyOrderAlert: true,
-        lowStockAlert: true
+  const refreshSettings = async () => {
+    try {
+      const settingsData = await enhancedDB.getData('settings');
+      const settingsMap = new Map(settingsData.map((item: any) => [item.key, item.value]));
+      
+      if (settingsMap.size > 0) {
+        setSettings({
+          restaurant: settingsMap.get('restaurant') || settings.restaurant,
+          printing: settingsMap.get('printing') || settings.printing,
+          orders: settingsMap.get('orders') || settings.orders,
+          notifications: settingsMap.get('notifications') || settings.notifications
+        });
       }
-    };
-    saveSettings(defaultSettings);
+    } catch (error) {
+      console.error('Failed to refresh settings:', error);
+    }
   };
 
-  const exportSettings = () => {
-    return JSON.stringify(settings, null, 2);
+  const saveSettingValue = async (key: string, value: any) => {
+    try {
+      await enhancedDB.updateItem('settings', key, { key, value });
+    } catch (error) {
+      // If update fails, try adding
+      try {
+        await enhancedDB.addItem('settings', { key, value });
+      } catch (addError) {
+        console.error('Failed to save setting:', addError);
+        throw addError;
+      }
+    }
   };
 
-  const importSettings = (settingsJson: string) => {
+  const updateRestaurantSettings = async (updates: Partial<RestaurantSettings>) => {
+    try {
+      const newSettings = { ...settings.restaurant, ...updates };
+      await saveSettingValue('restaurant', newSettings);
+      setSettings(prev => ({ ...prev, restaurant: newSettings }));
+    } catch (error) {
+      console.error('Failed to update restaurant settings:', error);
+      throw error;
+    }
+  };
+
+  const updatePrintingSettings = async (updates: Partial<PrintingSettings>) => {
+    try {
+      const newSettings = { ...settings.printing, ...updates };
+      await saveSettingValue('printing', newSettings);
+      setSettings(prev => ({ ...prev, printing: newSettings }));
+    } catch (error) {
+      console.error('Failed to update printing settings:', error);
+      throw error;
+    }
+  };
+
+  const updateOrderSettings = async (updates: Partial<OrderSettings>) => {
+    try {
+      const newSettings = { ...settings.orders, ...updates };
+      await saveSettingValue('orders', newSettings);
+      setSettings(prev => ({ ...prev, orders: newSettings }));
+    } catch (error) {
+      console.error('Failed to update order settings:', error);
+      throw error;
+    }
+  };
+
+  const updateNotificationSettings = async (updates: Partial<NotificationSettings>) => {
+    try {
+      const newSettings = { ...settings.notifications, ...updates };
+      await saveSettingValue('notifications', newSettings);
+      setSettings(prev => ({ ...prev, notifications: newSettings }));
+    } catch (error) {
+      console.error('Failed to update notification settings:', error);
+      throw error;
+    }
+  };
+
+  const getSetting = (key: string) => {
+    const keys = key.split('.');
+    let value: any = settings;
+    for (const k of keys) {
+      value = value?.[k];
+    }
+    return value;
+  };
+
+  const setSetting = async (key: string, value: any) => {
+    try {
+      await saveSettingValue(key, value);
+      await refreshSettings();
+    } catch (error) {
+      console.error('Failed to set setting:', error);
+      throw error;
+    }
+  };
+
+  const resetToDefaults = async () => {
+    try {
+      await enhancedDB.setData('settings', []);
+      await refreshSettings();
+    } catch (error) {
+      console.error('Failed to reset settings:', error);
+      throw error;
+    }
+  };
+
+  const exportSettings = async () => {
+    try {
+      return JSON.stringify(settings, null, 2);
+    } catch (error) {
+      console.error('Failed to export settings:', error);
+      throw error;
+    }
+  };
+
+  const importSettings = async (settingsJson: string) => {
     try {
       const importedSettings = JSON.parse(settingsJson);
-      saveSettings(importedSettings);
+      
+      for (const [key, value] of Object.entries(importedSettings)) {
+        await saveSettingValue(key, value);
+      }
+      
+      await refreshSettings();
     } catch (error) {
-      throw new Error('Invalid settings format');
+      console.error('Failed to import settings:', error);
+      throw error;
     }
   };
 
@@ -199,9 +257,12 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       updatePrintingSettings,
       updateOrderSettings,
       updateNotificationSettings,
+      getSetting,
+      setSetting,
       resetToDefaults,
       exportSettings,
-      importSettings
+      importSettings,
+      refreshSettings
     }}>
       {children}
     </SettingsContext.Provider>

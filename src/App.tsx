@@ -10,6 +10,8 @@ import { NotificationProvider } from "./contexts/NotificationContext";
 import { OrderProvider } from "./contexts/OrderContext";
 import { TableProvider } from "./contexts/TableContext";
 import { MenuProvider } from "./contexts/MenuContext";
+import { CustomerProvider } from "./contexts/CustomerContext";
+import { InventoryProvider } from "./contexts/InventoryContext";
 import OfflineIndicator from "./components/OfflineIndicator";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
@@ -21,7 +23,14 @@ import Billing from "./pages/Billing";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -29,28 +38,34 @@ const App = () => (
       <DatabaseProvider>
         <SettingsProvider>
           <NotificationProvider>
-            <MenuProvider>
-              <TableProvider>
-                <OrderProvider>
-                  <Toaster />
-                  <Sonner />
-                  <OfflineIndicator />
-                  <BrowserRouter>
-                    <Routes>
-                      <Route path="/" element={<Index />} />
-                      <Route path="/order-taking" element={<OrderTaking />} />
-                      <Route path="/billing" element={<Billing />} />
-                      <Route path="/kitchen" element={<KitchenDisplay />} />
-                      <Route path="/tables" element={<TableManagement />} />
-                      <Route path="/menu" element={<MenuManagement />} />
-                      <Route path="/reports" element={<Reports />} />
-                      <Route path="/settings" element={<Settings />} />
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                  </BrowserRouter>
-                </OrderProvider>
-              </TableProvider>
-            </MenuProvider>
+            <CustomerProvider>
+              <InventoryProvider>
+                <MenuProvider>
+                  <TableProvider>
+                    <OrderProvider>
+                      <div className="min-h-screen w-full">
+                        <Toaster />
+                        <Sonner />
+                        <OfflineIndicator />
+                        <BrowserRouter>
+                          <Routes>
+                            <Route path="/" element={<Index />} />
+                            <Route path="/order-taking" element={<OrderTaking />} />
+                            <Route path="/billing" element={<Billing />} />
+                            <Route path="/kitchen" element={<KitchenDisplay />} />
+                            <Route path="/tables" element={<TableManagement />} />
+                            <Route path="/menu" element={<MenuManagement />} />
+                            <Route path="/reports" element={<Reports />} />
+                            <Route path="/settings" element={<Settings />} />
+                            <Route path="*" element={<NotFound />} />
+                          </Routes>
+                        </BrowserRouter>
+                      </div>
+                    </OrderProvider>
+                  </TableProvider>
+                </MenuProvider>
+              </InventoryProvider>
+            </CustomerProvider>
           </NotificationProvider>
         </SettingsProvider>
       </DatabaseProvider>

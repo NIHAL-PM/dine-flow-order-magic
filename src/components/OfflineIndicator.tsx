@@ -1,23 +1,23 @@
 
 import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Wifi, WifiOff, CloudOff, Cloud } from 'lucide-react';
+import { Wifi, WifiOff, CloudOff, Cloud, AlertCircle } from 'lucide-react';
 import { useDatabaseContext } from '@/contexts/DatabaseContext';
 
 const OfflineIndicator = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   
-  // Safely access the database context
   let lastSync = null;
   let pendingSync = false;
+  let initialized = false;
   
   try {
-    const { lastSync: dbLastSync, pendingSync: dbPendingSync } = useDatabaseContext();
+    const { lastSync: dbLastSync, pendingSync: dbPendingSync, initialized: dbInitialized } = useDatabaseContext();
     lastSync = dbLastSync;
     pendingSync = dbPendingSync;
+    initialized = dbInitialized;
   } catch (error) {
-    // If context is not available, use default values
-    console.log('Database context not available, using defaults');
+    console.log('Database context not available');
   }
 
   useEffect(() => {
@@ -33,8 +33,19 @@ const OfflineIndicator = () => {
     };
   }, []);
 
+  if (!initialized) {
+    return (
+      <div className="fixed bottom-4 right-4 z-50">
+        <Badge variant="secondary" className="flex items-center gap-2 px-3 py-2 animate-pulse">
+          <AlertCircle className="h-4 w-4" />
+          Initializing...
+        </Badge>
+      </div>
+    );
+  }
+
   if (isOnline && !pendingSync) {
-    return null; // Don't show indicator when online and synced
+    return null;
   }
 
   return (
