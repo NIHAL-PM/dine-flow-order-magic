@@ -1,5 +1,6 @@
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { db } from '@/services/database';
 
 export interface OrderItem {
   id: string;
@@ -35,6 +36,7 @@ interface OrderContextType {
   deleteOrder: (orderId: string) => void;
   getActiveOrders: () => SavedOrder[];
   getOrderById: (orderId: string) => SavedOrder | undefined;
+  refreshOrders: () => void;
 }
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
@@ -51,6 +53,29 @@ export const OrderProvider = ({ children }: { children: ReactNode }) => {
   const [savedOrders, setSavedOrders] = useState<SavedOrder[]>([]);
   const [completedOrders, setCompletedOrders] = useState<SavedOrder[]>([]);
 
+  useEffect(() => {
+    // Load initial data
+    refreshOrders();
+
+    // Subscribe to database changes
+    const unsubscribe = db.subscribe('orders', (orders) => {
+      const active = orders.filter((order: SavedOrder) => order.status !== 'completed');
+      const completed = orders.filter((order: SavedOrder) => order.status === 'completed');
+      setSavedOrders(active);
+      setCompletedOrders(completed);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const refreshOrders = () => {
+    const orders = db.getData('orders') as SavedOrder[];
+    const active = orders.filter(order => order.status !== 'completed');
+    const completed = orders.filter(order => order.status === 'completed');
+    setSavedOrders(active);
+    setCompletedOrders(completed);
+  };
+
   const addOrder = (orderData: Omit<SavedOrder, 'id' | 'timestamp' | 'status' | 'priority'>) => {
     const newOrder: SavedOrder = {
       ...orderData,
@@ -58,31 +83,19 @@ export const OrderProvider = ({ children }: { children: ReactNode }) => {
       timestamp: new Date(),
       status: 'saved',
       priority: 'normal',
-      estimatedTime: 15 // Default 15 minutes
+      estimatedTime: 15
     };
-    setSavedOrders(prev => [...prev, newOrder]);
+    
+    const allOrders = db.getData('orders') as SavedOrder[];
+    db.setData('orders', [...allOrders, newOrder]);
   };
 
   const updateOrderStatus = (orderId: string, status: SavedOrder['status']) => {
-    if (status === 'completed') {
-      // Move order from savedOrders to completedOrders
-      setSavedOrders(prev => {
-        const orderToComplete = prev.find(order => order.id === orderId);
-        if (orderToComplete) {
-          const updatedOrder = { ...orderToComplete, status };
-          setCompletedOrders(completedPrev => [...completedPrev, updatedOrder]);
-          return prev.filter(order => order.id !== orderId);
-        }
-        return prev;
-      });
-    } else {
-      // Update status in savedOrders
-      setSavedOrders(prev =>
-        prev.map(order =>
-          order.id === orderId ? { ...order, status } : order
-        )
-      );
-    }
+    const allOrders = db.getData('orders') as SavedOrder[];
+    const updatedOrders = allOrders.map(order =>
+      order.id === orderId ? { ...order, status, updatedAt: new Date().toISOString() } : order
+    );
+    db.setData('orders', updatedOrders);
   };
 
   const getOrdersByStatus = (status: SavedOrder['status']) => {
@@ -102,8 +115,9 @@ export const OrderProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const deleteOrder = (orderId: string) => {
-    setSavedOrders(prev => prev.filter(order => order.id !== orderId));
-    setCompletedOrders(prev => prev.filter(order => order.id !== orderId));
+    const allOrders = db.getData('orders') as SavedOrder[];
+    const filteredOrders = allOrders.filter(order => order.id !== orderId);
+    db.setData('orders', filteredOrders);
   };
 
   return (
@@ -115,7 +129,8 @@ export const OrderProvider = ({ children }: { children: ReactNode }) => {
       getOrdersByStatus,
       deleteOrder,
       getActiveOrders,
-      getOrderById
+      getOrderById,
+      refreshOrders
     }}>
       {children}
     </OrderContext.Provider>

@@ -4,6 +4,9 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { DatabaseProvider } from "./contexts/DatabaseContext";
+import { SettingsProvider } from "./contexts/SettingsContext";
+import { NotificationProvider } from "./contexts/NotificationContext";
 import { OrderProvider } from "./contexts/OrderContext";
 import { TableProvider } from "./contexts/TableContext";
 import { MenuProvider } from "./contexts/MenuContext";
@@ -22,27 +25,33 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <MenuProvider>
-        <TableProvider>
-          <OrderProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/order-taking" element={<OrderTaking />} />
-                <Route path="/billing" element={<Billing />} />
-                <Route path="/kitchen" element={<KitchenDisplay />} />
-                <Route path="/tables" element={<TableManagement />} />
-                <Route path="/menu" element={<MenuManagement />} />
-                <Route path="/reports" element={<Reports />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </OrderProvider>
-        </TableProvider>
-      </MenuProvider>
+      <DatabaseProvider>
+        <SettingsProvider>
+          <NotificationProvider>
+            <MenuProvider>
+              <TableProvider>
+                <OrderProvider>
+                  <Toaster />
+                  <Sonner />
+                  <BrowserRouter>
+                    <Routes>
+                      <Route path="/" element={<Index />} />
+                      <Route path="/order-taking" element={<OrderTaking />} />
+                      <Route path="/billing" element={<Billing />} />
+                      <Route path="/kitchen" element={<KitchenDisplay />} />
+                      <Route path="/tables" element={<TableManagement />} />
+                      <Route path="/menu" element={<MenuManagement />} />
+                      <Route path="/reports" element={<Reports />} />
+                      <Route path="/settings" element={<Settings />} />
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </BrowserRouter>
+                </OrderProvider>
+              </TableProvider>
+            </MenuProvider>
+          </NotificationProvider>
+        </SettingsProvider>
+      </DatabaseProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

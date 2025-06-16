@@ -16,10 +16,13 @@ import {
   AlertCircle
 } from "lucide-react";
 import { useOrderContext } from "@/contexts/OrderContext";
+import { useNotificationContext } from "@/contexts/NotificationContext";
+import OfflineIndicator from "@/components/OfflineIndicator";
 
 const Index = () => {
   const navigate = useNavigate();
   const { savedOrders, completedOrders } = useOrderContext();
+  const { unreadCount } = useNotificationContext();
 
   // Calculate real-time statistics
   const stats = {
@@ -66,7 +69,7 @@ const Index = () => {
       icon: Users,
       path: "/tables",
       color: "from-purple-500 to-indigo-500",
-      stats: "8 Tables"
+      stats: "20 Tables"
     },
     {
       title: "Menu Management",
@@ -90,7 +93,7 @@ const Index = () => {
       icon: Settings,
       path: "/settings",
       color: "from-gray-500 to-slate-600",
-      stats: "Configure"
+      stats: unreadCount > 0 ? `${unreadCount} Alerts` : "Configure"
     }
   ];
 
@@ -122,6 +125,11 @@ const Index = () => {
                   <p className="text-gray-600">Today's Revenue</p>
                 </div>
               </div>
+              {unreadCount > 0 && (
+                <Badge variant="destructive" className="animate-pulse">
+                  {unreadCount} New
+                </Badge>
+              )}
             </div>
           </div>
         </div>
@@ -258,6 +266,8 @@ const Index = () => {
           </Card>
         </div>
       </div>
+
+      <OfflineIndicator />
     </div>
   );
 };

@@ -1,5 +1,6 @@
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { db } from '@/services/database';
 
 export interface MenuItem {
   id: string;
@@ -33,6 +34,7 @@ interface MenuContextType {
   deleteMenuItem: (id: string) => void;
   getItemsByCategory: (categoryId: string) => MenuItem[];
   toggleItemAvailability: (itemId: string) => void;
+  refreshMenu: () => void;
 }
 
 const MenuContext = createContext<MenuContextType | undefined>(undefined);
@@ -45,49 +47,28 @@ export const useMenuContext = () => {
   return context;
 };
 
-// Initialize with default menu data
-const initializeMenuData = () => {
-  const savedCategories = localStorage.getItem('restaurant_categories');
-  const savedItems = localStorage.getItem('restaurant_menu_items');
-  
-  if (savedCategories && savedItems) {
-    return {
-      categories: JSON.parse(savedCategories),
-      items: JSON.parse(savedItems)
-    };
-  }
-  
-  // Default menu data
-  const defaultCategories: MenuCategory[] = [
-    { id: 'appetizers', name: 'Appetizers', description: 'Start your meal', order: 1, active: true },
-    { id: 'mains', name: 'Main Course', description: 'Our signature dishes', order: 2, active: true },
-    { id: 'beverages', name: 'Beverages', description: 'Refreshing drinks', order: 3, active: true },
-    { id: 'desserts', name: 'Desserts', description: 'Sweet endings', order: 4, active: true }
-  ];
-  
-  const defaultItems: MenuItem[] = [
-    { id: '1', name: 'Samosa', description: 'Crispy pastry with spiced filling', price: 45, category: 'appetizers', available: true, preparationTime: 10, dietary: ['vegetarian'] },
-    { id: '2', name: 'Pakora', description: 'Mixed vegetable fritters', price: 65, category: 'appetizers', available: true, preparationTime: 12, dietary: ['vegetarian'] },
-    { id: '3', name: 'Spring Roll', description: 'Crispy vegetable spring rolls', price: 85, category: 'appetizers', available: true, preparationTime: 15, dietary: ['vegetarian'] },
-    { id: '4', name: 'Butter Chicken', description: 'Creamy tomato curry with chicken', price: 280, category: 'mains', available: true, preparationTime: 25 },
-    { id: '5', name: 'Dal Makhani', description: 'Rich black lentil curry', price: 220, category: 'mains', available: true, preparationTime: 20, dietary: ['vegetarian'] },
-    { id: '6', name: 'Biryani', description: 'Fragrant rice with spices and meat', price: 320, category: 'mains', available: true, preparationTime: 30 },
-    { id: '7', name: 'Lassi', description: 'Traditional yogurt drink', price: 65, category: 'beverages', available: true, preparationTime: 5, dietary: ['vegetarian'] },
-    { id: '8', name: 'Tea', description: 'Hot masala chai', price: 25, category: 'beverages', available: true, preparationTime: 5, dietary: ['vegetarian'] },
-    { id: '9', name: 'Cold Coffee', description: 'Iced coffee with cream', price: 85, category: 'beverages', available: true, preparationTime: 8 },
-    { id: '10', name: 'Gulab Jamun', description: 'Sweet milk dumplings in syrup', price: 95, category: 'desserts', available: true, preparationTime: 5, dietary: ['vegetarian'] }
-  ];
-  
-  localStorage.setItem('restaurant_categories', JSON.stringify(defaultCategories));
-  localStorage.setItem('restaurant_menu_items', JSON.stringify(defaultItems));
-  
-  return { categories: defaultCategories, items: defaultItems };
-};
-
 export const MenuProvider = ({ children }: { children: ReactNode }) => {
-  const initialData = initializeMenuData();
-  const [categories, setCategories] = useState<MenuCategory[]>(initialData.categories);
-  const [items, setItems] = useState<MenuItem[]>(initialData.items);
+  const [categories, setCategories] = useState<MenuCategory[]>([]);
+  const [items, setItems] = useState<MenuItem[]>([]);
+
+  useEffect(() => {
+    // Load initial data
+    refreshMenu();
+
+    // Subscribe to database changes
+    const unsubscribeCategories = db.subscribe('categories', setCategories);
+    const unsubscribeItems = db.subscribe('menuItems', setItems);
+
+    return () => {
+      unsubscribeCategories();
+      unsubscribeItems();
+    };
+  }, []);
+
+  const refreshMenu = () => {
+    setCategories(db.getData('categories'));
+    setItems(db.getData('menuItems'));
+  };
 
   const addCategory = (categoryData: Omit<MenuCategory, 'id'>) => {
     const newCategory: MenuCategory = {
@@ -95,34 +76,27 @@ export const MenuProvider = ({ children }: { children: ReactNode }) => {
       id: `category_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     };
     
-    setCategories(prev => {
-      const updated = [...prev, newCategory];
-      localStorage.setItem('restaurant_categories', JSON.stringify(updated));
-      return updated;
-    });
+    const currentCategories = db.getData('categories');
+    db.setData('categories', [...currentCategories, newCategory]);
   };
 
   const updateCategory = (id: string, updates: Partial<MenuCategory>) => {
-    setCategories(prev => {
-      const updated = prev.map(cat => cat.id === id ? { ...cat, ...updates } : cat);
-      localStorage.setItem('restaurant_categories', JSON.stringify(updated));
-      return updated;
-    });
+    const currentCategories = db.getData('categories');
+    const updatedCategories = currentCategories.map((cat: MenuCategory) => 
+      cat.id === id ? { ...cat, ...updates } : cat
+    );
+    db.setData('categories', updatedCategories);
   };
 
   const deleteCategory = (id: string) => {
-    setCategories(prev => {
-      const updated = prev.filter(cat => cat.id !== id);
-      localStorage.setItem('restaurant_categories', JSON.stringify(updated));
-      return updated;
-    });
+    const currentCategories = db.getData('categories');
+    const filteredCategories = currentCategories.filter((cat: MenuCategory) => cat.id !== id);
+    db.setData('categories', filteredCategories);
     
     // Also remove items in this category
-    setItems(prev => {
-      const updated = prev.filter(item => item.category !== id);
-      localStorage.setItem('restaurant_menu_items', JSON.stringify(updated));
-      return updated;
-    });
+    const currentItems = db.getData('menuItems');
+    const filteredItems = currentItems.filter((item: MenuItem) => item.category !== id);
+    db.setData('menuItems', filteredItems);
   };
 
   const addMenuItem = (itemData: Omit<MenuItem, 'id'>) => {
@@ -131,27 +105,22 @@ export const MenuProvider = ({ children }: { children: ReactNode }) => {
       id: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     };
     
-    setItems(prev => {
-      const updated = [...prev, newItem];
-      localStorage.setItem('restaurant_menu_items', JSON.stringify(updated));
-      return updated;
-    });
+    const currentItems = db.getData('menuItems');
+    db.setData('menuItems', [...currentItems, newItem]);
   };
 
   const updateMenuItem = (id: string, updates: Partial<MenuItem>) => {
-    setItems(prev => {
-      const updated = prev.map(item => item.id === id ? { ...item, ...updates } : item);
-      localStorage.setItem('restaurant_menu_items', JSON.stringify(updated));
-      return updated;
-    });
+    const currentItems = db.getData('menuItems');
+    const updatedItems = currentItems.map((item: MenuItem) => 
+      item.id === id ? { ...item, ...updates } : item
+    );
+    db.setData('menuItems', updatedItems);
   };
 
   const deleteMenuItem = (id: string) => {
-    setItems(prev => {
-      const updated = prev.filter(item => item.id !== id);
-      localStorage.setItem('restaurant_menu_items', JSON.stringify(updated));
-      return updated;
-    });
+    const currentItems = db.getData('menuItems');
+    const filteredItems = currentItems.filter((item: MenuItem) => item.id !== id);
+    db.setData('menuItems', filteredItems);
   };
 
   const getItemsByCategory = (categoryId: string) => {
@@ -159,7 +128,10 @@ export const MenuProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const toggleItemAvailability = (itemId: string) => {
-    updateMenuItem(itemId, { available: !items.find(item => item.id === itemId)?.available });
+    const item = items.find(item => item.id === itemId);
+    if (item) {
+      updateMenuItem(itemId, { available: !item.available });
+    }
   };
 
   return (
@@ -173,7 +145,8 @@ export const MenuProvider = ({ children }: { children: ReactNode }) => {
       updateMenuItem,
       deleteMenuItem,
       getItemsByCategory,
-      toggleItemAvailability
+      toggleItemAvailability,
+      refreshMenu
     }}>
       {children}
     </MenuContext.Provider>

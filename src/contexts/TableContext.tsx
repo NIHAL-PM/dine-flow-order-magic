@@ -1,5 +1,6 @@
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { db } from '@/services/database';
 
 export interface Table {
   id: number;
@@ -19,6 +20,7 @@ interface TableContextType {
   clearTable: (tableId: number) => void;
   getAvailableTables: () => Table[];
   getTableById: (tableId: number) => Table | undefined;
+  refreshTables: () => void;
 }
 
 const TableContext = createContext<TableContextType | undefined>(undefined);
@@ -31,41 +33,31 @@ export const useTableContext = () => {
   return context;
 };
 
-// Initialize with default tables
-const initializeTables = (): Table[] => {
-  const savedTables = localStorage.getItem('restaurant_tables');
-  if (savedTables) {
-    return JSON.parse(savedTables);
-  }
-  
-  // Default table layout
-  const defaultTables: Table[] = [];
-  for (let i = 1; i <= 20; i++) {
-    defaultTables.push({
-      id: i,
-      number: i,
-      capacity: i <= 10 ? 4 : i <= 15 ? 6 : 8,
-      status: 'available'
-    });
-  }
-  
-  localStorage.setItem('restaurant_tables', JSON.stringify(defaultTables));
-  return defaultTables;
-};
-
 export const TableProvider = ({ children }: { children: ReactNode }) => {
-  const [tables, setTables] = useState<Table[]>(initializeTables);
+  const [tables, setTables] = useState<Table[]>([]);
+
+  useEffect(() => {
+    // Load initial data
+    refreshTables();
+
+    // Subscribe to database changes
+    const unsubscribe = db.subscribe('tables', setTables);
+
+    return unsubscribe;
+  }, []);
+
+  const refreshTables = () => {
+    setTables(db.getData('tables'));
+  };
 
   const updateTableStatus = (tableId: number, status: Table['status'], details?: Partial<Table>) => {
-    setTables(prev => {
-      const updated = prev.map(table =>
-        table.id === tableId 
-          ? { ...table, status, ...details }
-          : table
-      );
-      localStorage.setItem('restaurant_tables', JSON.stringify(updated));
-      return updated;
-    });
+    const currentTables = db.getData('tables');
+    const updatedTables = currentTables.map((table: Table) =>
+      table.id === tableId 
+        ? { ...table, status, ...details, updatedAt: new Date().toISOString() }
+        : table
+    );
+    db.setData('tables', updatedTables);
   };
 
   const reserveTable = (tableId: number, customerName: string, time: Date, customerCount: number) => {
@@ -100,7 +92,8 @@ export const TableProvider = ({ children }: { children: ReactNode }) => {
       reserveTable,
       clearTable,
       getAvailableTables,
-      getTableById
+      getTableById,
+      refreshTables
     }}>
       {children}
     </TableContext.Provider>
