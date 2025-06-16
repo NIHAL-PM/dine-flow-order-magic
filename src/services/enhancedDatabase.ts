@@ -125,11 +125,14 @@ class EnhancedDatabaseService {
       // Clear existing data
       await indexedDBService.clear(table);
       
-      // Add new data
+      // Add new data - ensure data is iterable
       if (Array.isArray(data)) {
         for (const item of data) {
           await indexedDBService.put(table, item);
         }
+      } else if (data && typeof data === 'object') {
+        // Handle single object case
+        await indexedDBService.put(table, data);
       }
 
       // Queue sync operation

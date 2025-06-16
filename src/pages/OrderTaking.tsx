@@ -101,12 +101,19 @@ const OrderTaking = () => {
       return;
     }
 
+    const subtotal = calculateSubtotal();
+    const tax = subtotal * 0.18; // 18% tax
+    const discount = 0;
+    const total = subtotal + tax - discount;
+
     const orderData = {
-      tokenNumber: generateTokenNumber(orderType),
       orderType,
       tableNumber: orderType === 'dine-in' ? tableNumber : undefined,
       items: orderItems,
-      subtotal: calculateSubtotal(),
+      subtotal,
+      tax,
+      discount,
+      total,
       waiterName: waiterName || 'Staff',
       customerName: customerName || undefined,
       customerPhone: customerPhone || undefined,
@@ -115,7 +122,7 @@ const OrderTaking = () => {
     };
 
     addOrder(orderData);
-    toast.success(`Order ${orderData.tokenNumber} saved successfully!`);
+    toast.success(`Order saved successfully!`);
     
     // Reset form
     setOrderItems([]);
@@ -133,12 +140,19 @@ const OrderTaking = () => {
       return;
     }
 
+    const subtotal = calculateSubtotal();
+    const tax = subtotal * 0.18; // 18% tax
+    const discount = 0;
+    const total = subtotal + tax - discount;
+
     const orderData = {
-      tokenNumber: generateTokenNumber(orderType),
       orderType,
       tableNumber: orderType === 'dine-in' ? tableNumber : undefined,
       items: orderItems,
-      subtotal: calculateSubtotal(),
+      subtotal,
+      tax,
+      discount,
+      total,
       waiterName: waiterName || 'Staff',
       customerName: customerName || undefined,
       customerPhone: customerPhone || undefined,
@@ -151,7 +165,7 @@ const OrderTaking = () => {
     // Immediately confirm the order to send it to kitchen
     setTimeout(() => {
       // This simulates the order being confirmed and sent to kitchen
-      toast.success(`Order ${orderData.tokenNumber} sent to kitchen!`);
+      toast.success(`Order sent to kitchen!`);
     }, 100);
     
     // Reset form

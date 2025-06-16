@@ -66,6 +66,46 @@ interface SettingsContextType {
   refreshSettings: () => Promise<void>;
 }
 
+const defaultSettings: Settings = {
+  restaurant: {
+    name: '',
+    address: '',
+    phone: '',
+    email: '',
+    currency: 'INR',
+    timezone: 'Asia/Kolkata',
+    taxRate: 18
+  },
+  printing: {
+    enabled: false,
+    printerName: '',
+    paperSize: '80mm',
+    printLogo: false,
+    printFooter: true,
+    autoKotPrint: true,
+    autoBillPrint: false,
+    kotCopies: 1,
+    billCopies: 1
+  },
+  orders: {
+    autoConfirm: false,
+    defaultPreparationTime: 15,
+    allowEditAfterConfirm: true,
+    requireWaiterName: false,
+    enablePriority: true,
+    maxOrdersPerTable: 5
+  },
+  notifications: {
+    soundEnabled: true,
+    newOrderAlert: true,
+    readyOrderAlert: true,
+    lowStockAlert: true,
+    reservationReminder: true,
+    soundVolume: 0.8,
+    emailNotifications: false
+  }
+};
+
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export const useSettingsContext = () => {
@@ -77,45 +117,7 @@ export const useSettingsContext = () => {
 };
 
 export const SettingsProvider = ({ children }: { children: ReactNode }) => {
-  const [settings, setSettings] = useState<Settings>({
-    restaurant: {
-      name: '',
-      address: '',
-      phone: '',
-      email: '',
-      currency: 'INR',
-      timezone: 'Asia/Kolkata',
-      taxRate: 18
-    },
-    printing: {
-      enabled: false,
-      printerName: '',
-      paperSize: '80mm',
-      printLogo: false,
-      printFooter: true,
-      autoKotPrint: true,
-      autoBillPrint: false,
-      kotCopies: 1,
-      billCopies: 1
-    },
-    orders: {
-      autoConfirm: false,
-      defaultPreparationTime: 15,
-      allowEditAfterConfirm: true,
-      requireWaiterName: false,
-      enablePriority: true,
-      maxOrdersPerTable: 5
-    },
-    notifications: {
-      soundEnabled: true,
-      newOrderAlert: true,
-      readyOrderAlert: true,
-      lowStockAlert: true,
-      reservationReminder: true,
-      soundVolume: 0.8,
-      emailNotifications: false
-    }
-  });
+  const [settings, setSettings] = useState<Settings>(defaultSettings);
 
   useEffect(() => {
     refreshSettings();
@@ -128,10 +130,10 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       
       if (settingsMap.size > 0) {
         setSettings({
-          restaurant: settingsMap.get('restaurant') || settings.restaurant,
-          printing: settingsMap.get('printing') || settings.printing,
-          orders: settingsMap.get('orders') || settings.orders,
-          notifications: settingsMap.get('notifications') || settings.notifications
+          restaurant: settingsMap.get('restaurant') || defaultSettings.restaurant,
+          printing: settingsMap.get('printing') || defaultSettings.printing,
+          orders: settingsMap.get('orders') || defaultSettings.orders,
+          notifications: settingsMap.get('notifications') || defaultSettings.notifications
         });
       }
     } catch (error) {
@@ -219,7 +221,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   const resetToDefaults = async () => {
     try {
       await enhancedDB.setData('settings', []);
-      await refreshSettings();
+      setSettings(defaultSettings);
     } catch (error) {
       console.error('Failed to reset settings:', error);
       throw error;
