@@ -3,390 +3,267 @@ import { enhancedDB } from './enhancedDatabase';
 
 export interface Reservation {
   id: string;
+  tableId: number;
   customerName: string;
   customerPhone: string;
   customerEmail?: string;
-  partySize: number;
-  date: string;
+  date: Date;
   time: string;
-  duration: number; // in minutes
-  tableId?: string;
-  status: 'confirmed' | 'arrived' | 'seated' | 'completed' | 'cancelled' | 'no_show';
+  customerCount: number;
   specialRequests?: string;
+  status: 'confirmed' | 'seated' | 'completed' | 'cancelled' | 'no_show';
   createdAt: Date;
-  updatedAt: Date;
-  reminders: ReminderLog[];
-  source: 'phone' | 'walk_in' | 'online' | 'app';
-}
-
-export interface ReminderLog {
-  id: string;
-  type: 'sms' | 'email' | 'call';
-  sentAt: Date;
-  status: 'sent' | 'delivered' | 'failed';
-}
-
-export interface TimeSlot {
-  time: string;
-  availableTables: number;
-  totalCapacity: number;
-  reservations: string[]; // reservation IDs
+  updatedAt?: Date;
 }
 
 export interface WaitlistEntry {
   id: string;
   customerName: string;
   customerPhone: string;
-  partySize: number;
+  customerCount: number;
+  arrivalTime: Date;
   estimatedWaitTime: number;
+  status: 'waiting' | 'seated' | 'cancelled';
   priority: 'normal' | 'high' | 'vip';
-  status: 'waiting' | 'called' | 'seated' | 'left';
-  joinedAt: Date;
-  notifiedAt?: Date;
+  notified?: boolean;
+}
+
+export interface TimeSlot {
+  time: string;
+  available: boolean;
+  reservedCount: number;
+  maxCapacity: number;
 }
 
 class ReservationService {
-  private reservations: Map<string, Reservation> = new Map();
-  private waitlist: Map<string, WaitlistEntry> = new Map();
-  private timeSlots: Map<string, TimeSlot[]> = new Map(); // date -> time slots
+  private waitlist: WaitlistEntry[] = [];
+  private timeSlots: TimeSlot[] = [];
 
-  async initialize(): Promise<void> {
-    try {
-      await this.loadReservations();
-      await this.loadWaitlist();
-      this.generateTimeSlots();
-    } catch (error) {
-      console.error('Failed to initialize reservation service:', error);
-    }
+  constructor() {
+    this.initializeTimeSlots();
+    this.loadWaitlist();
   }
 
-  private async loadReservations(): Promise<void> {
-    try {
-      const reservations = await enhancedDB.getData('reservations');
-      if (Array.isArray(reservations)) {
-        reservations.forEach(reservation => {
-          this.reservations.set(reservation.id, reservation);
-        });
-      }
-    } catch (error) {
-      console.error('Failed to load reservations:', error);
-    }
-  }
-
-  private async loadWaitlist(): Promise<void> {
-    try {
-      // Waitlist could be stored in a separate table or as part of reservations
-      const today = new Date().toDateString();
-      const todayReservations = Array.from(this.reservations.values())
-        .filter(r => new Date(r.date).toDateString() === today && r.status === 'waiting');
-      
-      // Convert to waitlist entries if needed
-    } catch (error) {
-      console.error('Failed to load waitlist:', error);
-    }
-  }
-
-  private generateTimeSlots(): void {
-    const today = new Date();
-    for (let i = 0; i < 30; i++) { // Generate for next 30 days
-      const date = new Date(today);
-      date.setDate(date.getDate() + i);
-      const dateString = date.toISOString().split('T')[0];
-      
-      this.timeSlots.set(dateString, this.createTimeSlotsForDate(dateString));
-    }
-  }
-
-  private createTimeSlotsForDate(date: string): TimeSlot[] {
-    const slots: TimeSlot[] = [];
-    
-    // Generate time slots from 9 AM to 10 PM (30-minute intervals)
-    for (let hour = 9; hour <= 22; hour++) {
+  private initializeTimeSlots() {
+    // Generate time slots from 9 AM to 11 PM in 30-minute intervals
+    const slots = [];
+    for (let hour = 9; hour <= 23; hour++) {
       for (let minute = 0; minute < 60; minute += 30) {
+        if (hour === 23 && minute > 0) break; // Stop at 11:00 PM
         const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        
         slots.push({
           time,
-          availableTables: this.calculateAvailableTables(date, time),
-          totalCapacity: this.calculateTotalCapacity(),
-          reservations: this.getReservationsForSlot(date, time)
+          available: true,
+          reservedCount: 0,
+          maxCapacity: 10 // Default capacity per slot
         });
       }
     }
+    this.timeSlots = slots;
+  }
+
+  private async loadWaitlist() {
+    try {
+      const stored = localStorage.getItem('restaurant_waitlist');
+      if (stored) {
+        this.waitlist = JSON.parse(stored).map((entry: any) => ({
+          ...entry,
+          arrivalTime: new Date(entry.arrivalTime)
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to load waitlist:', error);
+      this.waitlist = [];
+    }
+  }
+
+  private async saveWaitlist() {
+    try {
+      localStorage.setItem('restaurant_waitlist', JSON.stringify(this.waitlist));
+    } catch (error) {
+      console.error('Failed to save waitlist:', error);
+    }
+  }
+
+  async addToWaitlist(entry: Omit<WaitlistEntry, 'id' | 'estimatedWaitTime' | 'status'>): Promise<string> {
+    const newEntry: WaitlistEntry = {
+      ...entry,
+      id: `waitlist_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      estimatedWaitTime: this.calculateEstimatedWaitTime(entry.customerCount),
+      status: 'waiting'
+    };
+
+    this.waitlist.push(newEntry);
+    await this.saveWaitlist();
     
-    return slots;
+    // Trigger notification
+    this.notifyWaitlistUpdate();
+    
+    return newEntry.id;
   }
 
-  private calculateAvailableTables(date: string, time: string): number {
-    // This would integrate with table management system
-    // For now, assume 20 tables available
-    const totalTables = 20;
-    const reservedTables = this.getReservationsForSlot(date, time).length;
-    return Math.max(0, totalTables - reservedTables);
-  }
-
-  private calculateTotalCapacity(): number {
-    // This would integrate with table management system
-    return 80; // Assume total capacity of 80 people
-  }
-
-  private getReservationsForSlot(date: string, time: string): string[] {
-    return Array.from(this.reservations.values())
-      .filter(r => r.date === date && r.time === time && r.status !== 'cancelled')
-      .map(r => r.id);
-  }
-
-  async createReservation(reservationData: Omit<Reservation, 'id' | 'createdAt' | 'updatedAt' | 'reminders'>): Promise<string> {
-    try {
-      const id = `res_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      const reservation: Reservation = {
-        ...reservationData,
-        id,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        reminders: []
-      };
-
-      // Validate availability
-      const isAvailable = await this.checkAvailability(
-        reservationData.date,
-        reservationData.time,
-        reservationData.partySize
-      );
-
-      if (!isAvailable) {
-        throw new Error('No availability for requested time slot');
-      }
-
-      // Save to database
-      await enhancedDB.addItem('reservations', reservation);
-      this.reservations.set(id, reservation);
-
-      // Update time slots
-      this.updateTimeSlots(reservationData.date, reservationData.time);
-
-      // Schedule reminder
-      await this.scheduleReminder(reservation);
-
-      // Trigger notification
-      this.triggerReservationNotification('created', reservation);
-
-      return id;
-    } catch (error) {
-      console.error('Failed to create reservation:', error);
-      throw error;
+  async updateWaitlistEntry(id: string, updates: Partial<WaitlistEntry>): Promise<void> {
+    const index = this.waitlist.findIndex(entry => entry.id === id);
+    if (index !== -1) {
+      this.waitlist[index] = { ...this.waitlist[index], ...updates };
+      await this.saveWaitlist();
+      this.notifyWaitlistUpdate();
     }
   }
 
-  async updateReservationStatus(reservationId: string, status: Reservation['status']): Promise<void> {
-    try {
-      const reservation = this.reservations.get(reservationId);
-      if (!reservation) {
-        throw new Error('Reservation not found');
-      }
+  getWaitlist(): WaitlistEntry[] {
+    return this.waitlist.filter(entry => entry.status === 'waiting')
+      .sort((a, b) => {
+        // Sort by priority first, then by arrival time
+        if (a.priority === 'vip' && b.priority !== 'vip') return -1;
+        if (b.priority === 'vip' && a.priority !== 'vip') return 1;
+        if (a.priority === 'high' && b.priority === 'normal') return -1;
+        if (b.priority === 'high' && a.priority === 'normal') return 1;
+        return a.arrivalTime.getTime() - b.arrivalTime.getTime();
+      });
+  }
 
-      const updatedReservation = {
-        ...reservation,
-        status,
+  private calculateEstimatedWaitTime(customerCount: number): number {
+    // Calculate based on current waitlist and table availability
+    const waitingEntries = this.waitlist.filter(entry => entry.status === 'waiting');
+    const baseWaitTime = 15; // Base wait time in minutes
+    const additionalTimePerGroup = 10;
+    const additionalTimeForLargeParty = customerCount > 4 ? 15 : 0;
+    
+    return baseWaitTime + (waitingEntries.length * additionalTimePerGroup) + additionalTimeForLargeParty;
+  }
+
+  async createReservation(reservation: Omit<Reservation, 'id' | 'createdAt'>): Promise<string> {
+    const newReservation: Reservation = {
+      ...reservation,
+      id: `reservation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      createdAt: new Date()
+    };
+
+    await enhancedDB.addItem('reservations', newReservation);
+    this.updateTimeSlotAvailability(reservation.date, reservation.time, 1);
+    
+    return newReservation.id;
+  }
+
+  async updateReservation(id: string, updates: Partial<Reservation>): Promise<void> {
+    const existing = await enhancedDB.getItem('reservations', id);
+    if (existing) {
+      await enhancedDB.updateItem('reservations', id, {
+        ...updates,
         updatedAt: new Date()
-      };
-
-      await enhancedDB.updateItem('reservations', reservationId, updatedReservation);
-      this.reservations.set(reservationId, updatedReservation);
-
-      // Handle table assignment when customer arrives
-      if (status === 'arrived') {
-        await this.assignTableForReservation(reservationId);
-      }
-
-      this.triggerReservationNotification('updated', updatedReservation);
-    } catch (error) {
-      console.error('Failed to update reservation status:', error);
-      throw error;
+      });
     }
   }
 
-  async checkAvailability(date: string, time: string, partySize: number): Promise<boolean> {
-    try {
-      const slots = this.timeSlots.get(date);
-      if (!slots) return false;
-
-      const slot = slots.find(s => s.time === time);
-      if (!slot) return false;
-
-      // Check if there are available tables that can accommodate the party size
-      return slot.availableTables > 0 && slot.totalCapacity >= partySize;
-    } catch (error) {
-      console.error('Failed to check availability:', error);
-      return false;
+  async cancelReservation(id: string): Promise<void> {
+    const reservation = await enhancedDB.getItem('reservations', id);
+    if (reservation) {
+      await this.updateReservation(id, { status: 'cancelled' });
+      this.updateTimeSlotAvailability(new Date(reservation.date), reservation.time, -1);
     }
   }
 
-  async addToWaitlist(customerData: Omit<WaitlistEntry, 'id' | 'joinedAt' | 'estimatedWaitTime'>): Promise<string> {
-    try {
-      const id = `wait_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      const waitlistEntry: WaitlistEntry = {
-        ...customerData,
-        id,
-        joinedAt: new Date(),
-        estimatedWaitTime: this.calculateEstimatedWaitTime(customerData.partySize)
-      };
+  getAvailableTimeSlots(date: Date): TimeSlot[] {
+    // For this demo, return all time slots as available
+    // In a real implementation, this would check against existing reservations
+    return this.timeSlots.map(slot => ({
+      ...slot,
+      available: slot.reservedCount < slot.maxCapacity
+    }));
+  }
 
-      this.waitlist.set(id, waitlistEntry);
-      
-      // Save to database (could use a separate waitlist table or store in reservations)
-      await enhancedDB.addItem('reservations', {
-        ...waitlistEntry,
-        date: new Date().toISOString().split('T')[0],
-        time: new Date().toTimeString().split(' ')[0].substring(0, 5),
-        duration: 120,
-        status: 'waiting' as any,
-        customerName: waitlistEntry.customerName,
-        customerPhone: waitlistEntry.customerPhone,
-        partySize: waitlistEntry.partySize,
-        createdAt: waitlistEntry.joinedAt,
-        updatedAt: waitlistEntry.joinedAt,
-        reminders: [],
-        source: 'walk_in' as const
+  private updateTimeSlotAvailability(date: Date, time: string, change: number) {
+    const slot = this.timeSlots.find(s => s.time === time);
+    if (slot) {
+      slot.reservedCount += change;
+      slot.available = slot.reservedCount < slot.maxCapacity;
+    }
+  }
+
+  async getReservationsForDate(date: Date): Promise<Reservation[]> {
+    try {
+      const allReservations = await enhancedDB.getData('reservations');
+      return allReservations.filter((reservation: Reservation) => 
+        new Date(reservation.date).toDateString() === date.toDateString()
+      );
+    } catch (error) {
+      console.error('Failed to get reservations for date:', error);
+      return [];
+    }
+  }
+
+  async seatWaitlistCustomer(waitlistId: string, tableId: number): Promise<void> {
+    await this.updateWaitlistEntry(waitlistId, { 
+      status: 'seated',
+      notified: true 
+    });
+    
+    // Trigger notification for next customer in line
+    const nextCustomer = this.getWaitlist()[0];
+    if (nextCustomer) {
+      this.notifyCustomer(nextCustomer.id, 'Your table will be ready soon!');
+    }
+  }
+
+  private notifyCustomer(waitlistId: string, message: string) {
+    // Trigger custom event for notification system
+    window.dispatchEvent(new CustomEvent('waitlistNotification', {
+      detail: { waitlistId, message, timestamp: new Date() }
+    }));
+  }
+
+  private notifyWaitlistUpdate() {
+    window.dispatchEvent(new CustomEvent('waitlistUpdate', {
+      detail: { waitlist: this.getWaitlist(), timestamp: new Date() }
+    }));
+  }
+
+  // Customer history and analytics
+  async getCustomerHistory(phone: string): Promise<Reservation[]> {
+    try {
+      const allReservations = await enhancedDB.getData('reservations');
+      return allReservations.filter((reservation: Reservation) => 
+        reservation.customerPhone === phone
+      ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    } catch (error) {
+      console.error('Failed to get customer history:', error);
+      return [];
+    }
+  }
+
+  async getReservationAnalytics(startDate: Date, endDate: Date) {
+    try {
+      const reservations = await enhancedDB.getData('reservations');
+      const filtered = reservations.filter((r: Reservation) => {
+        const resDate = new Date(r.date);
+        return resDate >= startDate && resDate <= endDate;
       });
 
-      this.triggerWaitlistNotification('added', waitlistEntry);
-
-      return id;
-    } catch (error) {
-      console.error('Failed to add to waitlist:', error);
-      throw error;
-    }
-  }
-
-  private calculateEstimatedWaitTime(partySize: number): number {
-    // Calculate based on current waitlist and average table turnover
-    const waitlistAhead = Array.from(this.waitlist.values())
-      .filter(entry => entry.status === 'waiting').length;
-    
-    // Assume 45 minutes average table turnover
-    const baseWaitTime = waitlistAhead * 15; // 15 minutes per party ahead
-    const partySizeMultiplier = partySize > 4 ? 1.5 : 1;
-    
-    return Math.round(baseWaitTime * partySizeMultiplier);
-  }
-
-  private async assignTableForReservation(reservationId: string): Promise<void> {
-    try {
-      // This would integrate with table management system
-      // For now, just update the reservation with a table assignment
-      const reservation = this.reservations.get(reservationId);
-      if (!reservation) return;
-
-      // Find available table (simplified logic)
-      const tableId = await this.findAvailableTable(reservation.partySize);
-      
-      if (tableId) {
-        await enhancedDB.updateItem('reservations', reservationId, {
-          tableId,
-          updatedAt: new Date()
-        });
-      }
-    } catch (error) {
-      console.error('Failed to assign table:', error);
-    }
-  }
-
-  private async findAvailableTable(partySize: number): Promise<string | null> {
-    try {
-      const tables = await enhancedDB.getData('tables');
-      if (Array.isArray(tables)) {
-        const availableTable = tables.find((table: any) => 
-          table.status === 'available' && table.capacity >= partySize
-        );
-        return availableTable?.id || null;
-      }
-      return null;
-    } catch (error) {
-      console.error('Failed to find available table:', error);
-      return null;
-    }
-  }
-
-  private updateTimeSlots(date: string, time: string): void {
-    const slots = this.timeSlots.get(date);
-    if (slots) {
-      const slot = slots.find(s => s.time === time);
-      if (slot) {
-        slot.availableTables = Math.max(0, slot.availableTables - 1);
-        slot.reservations = this.getReservationsForSlot(date, time);
-      }
-    }
-  }
-
-  private async scheduleReminder(reservation: Reservation): Promise<void> {
-    try {
-      // Schedule reminder 2 hours before reservation
-      const reminderTime = new Date(`${reservation.date}T${reservation.time}`);
-      reminderTime.setHours(reminderTime.getHours() - 2);
-
-      if (reminderTime > new Date()) {
-        // In a real implementation, this would use a proper scheduling system
-        setTimeout(async () => {
-          await this.sendReminder(reservation.id);
-        }, reminderTime.getTime() - Date.now());
-      }
-    } catch (error) {
-      console.error('Failed to schedule reminder:', error);
-    }
-  }
-
-  private async sendReminder(reservationId: string): Promise<void> {
-    try {
-      const reservation = this.reservations.get(reservationId);
-      if (!reservation || reservation.status === 'cancelled') return;
-
-      const reminder: ReminderLog = {
-        id: `reminder_${Date.now()}`,
-        type: 'sms',
-        sentAt: new Date(),
-        status: 'sent'
+      return {
+        totalReservations: filtered.length,
+        completedReservations: filtered.filter((r: Reservation) => r.status === 'completed').length,
+        cancelledReservations: filtered.filter((r: Reservation) => r.status === 'cancelled').length,
+        noShowRate: filtered.filter((r: Reservation) => r.status === 'no_show').length / filtered.length * 100,
+        averagePartySize: filtered.reduce((sum: number, r: Reservation) => sum + r.customerCount, 0) / filtered.length,
+        popularTimeSlots: this.getPopularTimeSlots(filtered)
       };
-
-      reservation.reminders.push(reminder);
-      await enhancedDB.updateItem('reservations', reservationId, reservation);
-
-      this.triggerReservationNotification('reminder_sent', reservation);
     } catch (error) {
-      console.error('Failed to send reminder:', error);
+      console.error('Failed to get reservation analytics:', error);
+      return null;
     }
   }
 
-  private triggerReservationNotification(type: string, reservation: Reservation): void {
-    const event = new CustomEvent('reservationUpdate', {
-      detail: { type, reservation, timestamp: new Date() }
-    });
-    window.dispatchEvent(event);
-  }
+  private getPopularTimeSlots(reservations: Reservation[]) {
+    const timeSlotCounts = reservations.reduce((acc: { [key: string]: number }, reservation) => {
+      acc[reservation.time] = (acc[reservation.time] || 0) + 1;
+      return acc;
+    }, {});
 
-  private triggerWaitlistNotification(type: string, entry: WaitlistEntry): void {
-    const event = new CustomEvent('waitlistUpdate', {
-      detail: { type, entry, timestamp: new Date() }
-    });
-    window.dispatchEvent(event);
-  }
-
-  getReservationsForDate(date: string): Reservation[] {
-    return Array.from(this.reservations.values())
-      .filter(r => r.date === date)
-      .sort((a, b) => a.time.localeCompare(b.time));
-  }
-
-  getTimeSlotsForDate(date: string): TimeSlot[] {
-    return this.timeSlots.get(date) || [];
-  }
-
-  getCurrentWaitlist(): WaitlistEntry[] {
-    return Array.from(this.waitlist.values())
-      .filter(entry => entry.status === 'waiting')
-      .sort((a, b) => a.joinedAt.getTime() - b.joinedAt.getTime());
+    return Object.entries(timeSlotCounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+      .map(([time, count]) => ({ time, count }));
   }
 }
 
