@@ -47,30 +47,22 @@ export interface LowStockAlert {
   acknowledgedAt?: Date;
 }
 
-export interface StockTakeRecord {
-  id: string;
-  itemId: string;
-  expectedQuantity: number;
-  actualQuantity: number;
-  variance: number;
-  cost: number;
-  reason?: string;
-  timestamp: Date;
-  userId: string;
-}
-
 class InventoryService {
   private inventory: Map<string, InventoryItem> = new Map();
   private movements: Map<string, StockMovement> = new Map();
   private alerts: Map<string, LowStockAlert> = new Map();
-  private stockTakes: Map<string, StockTakeRecord> = new Map();
+  private initialized = false;
 
   async initialize(): Promise<void> {
+    if (this.initialized) return;
+    
     try {
       await this.loadInventory();
       await this.loadMovements();
       await this.checkLowStock();
       this.startPeriodicChecks();
+      this.initialized = true;
+      console.log('Inventory service initialized successfully');
     } catch (error) {
       console.error('Failed to initialize inventory service:', error);
     }
@@ -81,7 +73,11 @@ class InventoryService {
       const inventory = await enhancedDB.getData('inventory');
       if (Array.isArray(inventory)) {
         inventory.forEach(item => {
-          this.inventory.set(item.id, item);
+          this.inventory.set(item.id, {
+            ...item,
+            lastRestocked: new Date(item.lastRestocked),
+            expiryDate: item.expiryDate ? new Date(item.expiryDate) : undefined
+          });
         });
       }
     } catch (error) {
@@ -91,12 +87,14 @@ class InventoryService {
 
   private async loadMovements(): Promise<void> {
     try {
-      // Load recent stock movements (last 30 days)
       const movements = await enhancedDB.getData('transactions');
       if (Array.isArray(movements)) {
         const stockMovements = movements.filter((m: any) => m.type === 'stock_movement');
         stockMovements.forEach(movement => {
-          this.movements.set(movement.id, movement);
+          this.movements.set(movement.id, {
+            ...movement,
+            timestamp: new Date(movement.timestamp)
+          });
         });
       }
     } catch (error) {
@@ -229,97 +227,6 @@ class InventoryService {
     } catch (error) {
       console.error('Failed to consume stock:', error);
       return false;
-    }
-  }
-
-  async restockItem(itemId: string, quantity: number, cost?: number, batchNumber?: string, expiryDate?: Date): Promise<void> {
-    try {
-      const item = this.inventory.get(itemId);
-      if (!item) {
-        throw new Error('Inventory item not found');
-      }
-
-      const newStock = item.currentStock + quantity;
-      
-      // Update item with new stock and potentially new batch info
-      const updates: Partial<InventoryItem> = {
-        currentStock: newStock,
-        lastRestocked: new Date()
-      };
-      
-      if (batchNumber) updates.batchNumber = batchNumber;
-      if (expiryDate) updates.expiryDate = expiryDate;
-      if (cost) updates.averageCost = ((item.averageCost * item.currentStock) + (cost * quantity)) / newStock;
-
-      await this.updateInventoryItem(itemId, updates);
-
-      await this.recordStockMovement({
-        itemId,
-        type: 'IN',
-        quantity,
-        previousStock: item.currentStock,
-        newStock,
-        cost,
-        reason: 'Restock',
-        userId: 'system'
-      });
-
-      // Clear low stock alerts if restocked above minimum
-      if (newStock >= item.minimumStock) {
-        await this.clearLowStockAlert(itemId);
-      }
-    } catch (error) {
-      console.error('Failed to restock item:', error);
-      throw error;
-    }
-  }
-
-  async performStockTake(itemId: string, actualQuantity: number, userId: string, reason?: string): Promise<void> {
-    try {
-      const item = this.inventory.get(itemId);
-      if (!item) {
-        throw new Error('Inventory item not found');
-      }
-
-      const variance = actualQuantity - item.currentStock;
-      const cost = Math.abs(variance) * item.averageCost;
-
-      const stockTakeRecord: StockTakeRecord = {
-        id: `take_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        itemId,
-        expectedQuantity: item.currentStock,
-        actualQuantity,
-        variance,
-        cost,
-        reason,
-        timestamp: new Date(),
-        userId
-      };
-
-      this.stockTakes.set(stockTakeRecord.id, stockTakeRecord);
-
-      // Record as adjustment if there's a variance
-      if (variance !== 0) {
-        await this.recordStockMovement({
-          itemId,
-          type: 'ADJUSTMENT',
-          quantity: variance,
-          previousStock: item.currentStock,
-          newStock: actualQuantity,
-          reason: reason || 'Stock take adjustment',
-          reference: stockTakeRecord.id,
-          userId
-        });
-      }
-
-      // Save stock take record
-      await enhancedDB.addItem('transactions', {
-        ...stockTakeRecord,
-        type: 'stock_take'
-      });
-    } catch (error) {
-      console.error('Failed to perform stock take:', error);
-      throw error;
     }
   }
 

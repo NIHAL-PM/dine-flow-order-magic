@@ -22,6 +22,8 @@ import MenuManagement from "./pages/MenuManagement";
 import Billing from "./pages/Billing";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
+import { useEffect } from "react";
+import { inventoryService } from "./services/inventoryService";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,6 +33,23 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+const AppInitializer = ({ children }: { children: React.ReactNode }) => {
+  useEffect(() => {
+    const initializeServices = async () => {
+      try {
+        await inventoryService.initialize();
+        console.log('All services initialized');
+      } catch (error) {
+        console.error('Failed to initialize services:', error);
+      }
+    };
+
+    initializeServices();
+  }, []);
+
+  return <>{children}</>;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -43,24 +62,26 @@ const App = () => (
                 <MenuProvider>
                   <TableProvider>
                     <OrderProvider>
-                      <div className="min-h-screen w-full">
-                        <Toaster />
-                        <Sonner />
-                        <OfflineIndicator />
-                        <BrowserRouter>
-                          <Routes>
-                            <Route path="/" element={<Index />} />
-                            <Route path="/order-taking" element={<OrderTaking />} />
-                            <Route path="/billing" element={<Billing />} />
-                            <Route path="/kitchen" element={<KitchenDisplay />} />
-                            <Route path="/tables" element={<TableManagement />} />
-                            <Route path="/menu" element={<MenuManagement />} />
-                            <Route path="/reports" element={<Reports />} />
-                            <Route path="/settings" element={<Settings />} />
-                            <Route path="*" element={<NotFound />} />
-                          </Routes>
-                        </BrowserRouter>
-                      </div>
+                      <AppInitializer>
+                        <div className="min-h-screen w-full">
+                          <Toaster />
+                          <Sonner />
+                          <OfflineIndicator />
+                          <BrowserRouter>
+                            <Routes>
+                              <Route path="/" element={<Index />} />
+                              <Route path="/order-taking" element={<OrderTaking />} />
+                              <Route path="/billing" element={<Billing />} />
+                              <Route path="/kitchen" element={<KitchenDisplay />} />
+                              <Route path="/tables" element={<TableManagement />} />
+                              <Route path="/menu" element={<MenuManagement />} />
+                              <Route path="/reports" element={<Reports />} />
+                              <Route path="/settings" element={<Settings />} />
+                              <Route path="*" element={<NotFound />} />
+                            </Routes>
+                          </BrowserRouter>
+                        </div>
+                      </AppInitializer>
                     </OrderProvider>
                   </TableProvider>
                 </MenuProvider>
