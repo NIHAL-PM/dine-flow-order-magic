@@ -8,7 +8,7 @@ export interface DatabaseSchema {
   menuItems: any[];
   categories: any[];
   tables: any[];
-  settings: any;
+  settings: any[];
   transactions: any[];
   reservations: any[];
   customers: any[];

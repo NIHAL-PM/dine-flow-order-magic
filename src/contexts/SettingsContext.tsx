@@ -129,11 +129,28 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       const settingsMap = new Map(settingsData.map((item: any) => [item.key, item.value]));
       
       if (settingsMap.size > 0) {
+        const restaurantData = settingsMap.get('restaurant');
+        const printingData = settingsMap.get('printing');
+        const ordersData = settingsMap.get('orders');
+        const notificationsData = settingsMap.get('notifications');
+
         setSettings({
-          restaurant: { ...defaultSettings.restaurant, ...(settingsMap.get('restaurant') || {}) },
-          printing: { ...defaultSettings.printing, ...(settingsMap.get('printing') || {}) },
-          orders: { ...defaultSettings.orders, ...(settingsMap.get('orders') || {}) },
-          notifications: { ...defaultSettings.notifications, ...(settingsMap.get('notifications') || {}) }
+          restaurant: { 
+            ...defaultSettings.restaurant, 
+            ...(restaurantData && typeof restaurantData === 'object' ? restaurantData : {})
+          },
+          printing: { 
+            ...defaultSettings.printing, 
+            ...(printingData && typeof printingData === 'object' ? printingData : {})
+          },
+          orders: { 
+            ...defaultSettings.orders, 
+            ...(ordersData && typeof ordersData === 'object' ? ordersData : {})
+          },
+          notifications: { 
+            ...defaultSettings.notifications, 
+            ...(notificationsData && typeof notificationsData === 'object' ? notificationsData : {})
+          }
         });
       }
     } catch (error) {
