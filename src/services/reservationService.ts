@@ -147,20 +147,30 @@ class ReservationService {
   }
 
   async updateReservation(id: string, updates: Partial<Reservation>): Promise<void> {
-    const existing = await enhancedDB.getItem('reservations', id);
-    if (existing) {
-      await enhancedDB.updateItem('reservations', id, {
-        ...updates,
-        updatedAt: new Date()
-      });
+    try {
+      const reservations = await enhancedDB.getData('reservations');
+      const existing = reservations.find((r: Reservation) => r.id === id);
+      if (existing) {
+        await enhancedDB.updateItem('reservations', id, {
+          ...updates,
+          updatedAt: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('Failed to update reservation:', error);
     }
   }
 
   async cancelReservation(id: string): Promise<void> {
-    const reservation = await enhancedDB.getItem('reservations', id);
-    if (reservation) {
-      await this.updateReservation(id, { status: 'cancelled' });
-      this.updateTimeSlotAvailability(new Date(reservation.date), reservation.time, -1);
+    try {
+      const reservations = await enhancedDB.getData('reservations');
+      const reservation = reservations.find((r: Reservation) => r.id === id);
+      if (reservation) {
+        await this.updateReservation(id, { status: 'cancelled' });
+        this.updateTimeSlotAvailability(new Date(reservation.date), reservation.time, -1);
+      }
+    } catch (error) {
+      console.error('Failed to cancel reservation:', error);
     }
   }
 
