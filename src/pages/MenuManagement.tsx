@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +17,6 @@ import {
   Edit3, 
   Trash2, 
   Search,
-  Filter,
   ChefHat,
   Star,
   DollarSign,
@@ -24,37 +24,28 @@ import {
   EyeOff,
   ArrowLeft
 } from "lucide-react";
-
-interface MenuItem {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  category: string;
-  available: boolean;
-  image?: string;
-  dietary: string[];
-  preparationTime: number;
-  ingredients: string[];
-  popularity: number;
-}
+import { useMenuContext } from "@/contexts/MenuContext";
 
 const MenuManagement = () => {
   const navigate = useNavigate();
-  
-  // Get menu items from localStorage or use empty array
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(() => {
-    const saved = localStorage.getItem('menuItems');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [categories] = useState(['Appetizers', 'Main Course', 'Beverages', 'Desserts']);
-  const [dietaryOptions] = useState(['Vegetarian', 'Vegan', 'Non-Vegetarian', 'Gluten-Free', 'Spicy']);
+  const { 
+    categories, 
+    items, 
+    addCategory, 
+    addMenuItem, 
+    updateMenuItem, 
+    deleteMenuItem, 
+    toggleItemAvailability,
+    getItemsByCategory,
+    searchItems 
+  } = useMenuContext();
   
   const [showItemDialog, setShowItemDialog] = useState(false);
-  const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [editingItem, setEditingItem] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  
+  const dietaryOptions = ['Vegetarian', 'Vegan', 'Non-Vegetarian', 'Gluten-Free', 'Spicy'];
   
   const [itemForm, setItemForm] = useState({
     name: '',
@@ -68,20 +59,12 @@ const MenuManagement = () => {
     ingredientInput: ''
   });
 
-  // Save to localStorage whenever menuItems changes
-  const saveMenuItems = (items: MenuItem[]) => {
-    setMenuItems(items);
-    localStorage.setItem('menuItems', JSON.stringify(items));
-    // Also save to a global menu context if needed
-    window.dispatchEvent(new CustomEvent('menuUpdated', { detail: items }));
-  };
-
-  const filteredItems = menuItems.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const filteredItems = selectedCategory === 'all' 
+    ? searchTerm ? searchItems(searchTerm) : items
+    : items.filter(item => 
+        item.category === selectedCategory && 
+        (searchTerm ? item.name.toLowerCase().includes(searchTerm.toLowerCase()) : true)
+      );
 
   const resetForm = () => {
     setItemForm({
@@ -98,7 +81,7 @@ const MenuManagement = () => {
     setEditingItem(null);
   };
 
-  const openEditDialog = (item: MenuItem) => {
+  const openEditDialog = (item: any) => {
     setEditingItem(item);
     setItemForm({
       name: item.name,
@@ -106,59 +89,66 @@ const MenuManagement = () => {
       price: item.price,
       category: item.category,
       available: item.available,
-      dietary: item.dietary,
+      dietary: item.dietary || [],
       preparationTime: item.preparationTime,
-      ingredients: item.ingredients,
+      ingredients: item.ingredients || [],
       ingredientInput: ''
     });
     setShowItemDialog(true);
   };
 
-  const handleSaveItem = () => {
+  const handleSaveItem = async () => {
     if (!itemForm.name || !itemForm.category || itemForm.price <= 0) {
       toast.error("Please fill all required fields");
       return;
     }
 
-    const newItem: MenuItem = {
-      id: editingItem?.id || Date.now().toString(),
-      name: itemForm.name,
-      description: itemForm.description,
-      price: itemForm.price,
-      category: itemForm.category,
-      available: itemForm.available,
-      dietary: itemForm.dietary,
-      preparationTime: itemForm.preparationTime,
-      ingredients: itemForm.ingredients,
-      popularity: editingItem?.popularity || 0
-    };
+    try {
+      const itemData = {
+        name: itemForm.name,
+        description: itemForm.description,
+        price: itemForm.price,
+        category: itemForm.category,
+        available: itemForm.available,
+        dietary: itemForm.dietary,
+        preparationTime: itemForm.preparationTime,
+        allergens: [],
+        cost: itemForm.price * 0.6, // Default 60% cost ratio
+        stockQuantity: 100
+      };
 
-    if (editingItem) {
-      const updatedItems = menuItems.map(item => item.id === editingItem.id ? newItem : item);
-      saveMenuItems(updatedItems);
-      toast.success("Menu item updated successfully");
-    } else {
-      saveMenuItems([...menuItems, newItem]);
-      toast.success("Menu item added successfully");
+      if (editingItem) {
+        await updateMenuItem(editingItem.id, itemData);
+        toast.success("Menu item updated successfully");
+      } else {
+        await addMenuItem(itemData);
+        toast.success("Menu item added successfully");
+      }
+
+      setShowItemDialog(false);
+      resetForm();
+    } catch (error) {
+      toast.error("Failed to save menu item");
     }
-
-    setShowItemDialog(false);
-    resetForm();
   };
 
-  const deleteItem = (id: string) => {
-    const updatedItems = menuItems.filter(item => item.id !== id);
-    saveMenuItems(updatedItems);
-    toast.success("Menu item deleted");
+  const deleteItem = async (id: string) => {
+    try {
+      await deleteMenuItem(id);
+      toast.success("Menu item deleted");
+    } catch (error) {
+      toast.error("Failed to delete menu item");
+    }
   };
 
-  const toggleAvailability = (id: string) => {
-    const updatedItems = menuItems.map(item => 
-      item.id === id ? { ...item, available: !item.available } : item
-    );
-    saveMenuItems(updatedItems);
-    const item = menuItems.find(i => i.id === id);
-    toast.success(`${item?.name} marked as ${item?.available ? 'unavailable' : 'available'}`);
+  const toggleAvailability = async (id: string) => {
+    try {
+      await toggleItemAvailability(id);
+      const item = items.find(i => i.id === id);
+      toast.success(`${item?.name} availability updated`);
+    } catch (error) {
+      toast.error("Failed to update availability");
+    }
   };
 
   const addIngredient = () => {
@@ -221,7 +211,7 @@ const MenuManagement = () => {
             </div>
             <div className="flex items-center space-x-4">
               <Badge variant="outline">
-                {menuItems.length} Items
+                {items.length} Items
               </Badge>
               <Button onClick={() => setShowItemDialog(true)} className="bg-gradient-to-r from-purple-500 to-pink-500">
                 <Plus className="h-4 w-4 mr-2" />
@@ -256,7 +246,7 @@ const MenuManagement = () => {
                   <SelectContent>
                     <SelectItem value="all">All Categories</SelectItem>
                     {categories.map(category => (
-                      <SelectItem key={category} value={category}>{category}</SelectItem>
+                      <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -266,7 +256,7 @@ const MenuManagement = () => {
         </Card>
 
         {/* Menu Items */}
-        {menuItems.length === 0 ? (
+        {items.length === 0 ? (
           <div className="text-center py-12">
             <ChefHat className="h-24 w-24 text-gray-300 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-600 mb-2">No menu items yet</h3>
@@ -277,102 +267,91 @@ const MenuManagement = () => {
             </Button>
           </div>
         ) : (
-          <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="w-full">
-            <TabsList className="mb-6">
-              <TabsTrigger value="all">All Items ({menuItems.length})</TabsTrigger>
-              {categories.map(category => (
-                <TabsTrigger key={category} value={category}>
-                  {category} ({menuItems.filter(item => item.category === category).length})
-                </TabsTrigger>
-              ))}
-            </TabsList>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredItems.map((item) => (
-                <Card key={item.id} className="hover:shadow-lg transition-all">
-                  <CardHeader className="pb-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-lg mb-2">{item.name}</CardTitle>
-                        <p className="text-gray-600 text-sm mb-3">{item.description}</p>
-                        <div className="flex items-center space-x-2 mb-2">
-                          <DollarSign className="h-4 w-4 text-green-600" />
-                          <span className="font-bold text-lg text-green-600">₹{item.price}</span>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end space-y-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => toggleAvailability(item.id)}
-                          className={`p-2 ${item.available ? 'text-green-600' : 'text-red-600'}`}
-                        >
-                          {item.available ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                        </Button>
-                        {item.popularity > 0 && (
-                          <div className="flex items-center space-x-1">
-                            <Star className={`h-4 w-4 ${getPopularityColor(item.popularity)}`} />
-                            <span className={`text-sm ${getPopularityColor(item.popularity)}`}>
-                              {item.popularity}%
-                            </span>
-                          </div>
-                        )}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredItems.map((item) => (
+              <Card key={item.id} className="hover:shadow-lg transition-all">
+                <CardHeader className="pb-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <CardTitle className="text-lg mb-2">{item.name}</CardTitle>
+                      <p className="text-gray-600 text-sm mb-3">{item.description}</p>
+                      <div className="flex items-center space-x-2 mb-2">
+                        <DollarSign className="h-4 w-4 text-green-600" />
+                        <span className="font-bold text-lg text-green-600">₹{item.price}</span>
                       </div>
                     </div>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Prep Time:</span>
-                        <span className="font-medium">{item.preparationTime} min</span>
-                      </div>
-                      
-                      <div>
-                        <Badge variant="outline" className="mb-2">
-                          {item.category}
-                        </Badge>
-                        <div className="flex flex-wrap gap-1">
-                          {item.dietary.map(diet => (
-                            <Badge key={diet} variant="secondary" className="text-xs">
-                              {diet}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      <Badge 
-                        variant={item.available ? "default" : "secondary"}
-                        className={item.available ? "bg-green-500" : "bg-red-500"}
+                    <div className="flex flex-col items-end space-y-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => toggleAvailability(item.id)}
+                        className={`p-2 ${item.available ? 'text-green-600' : 'text-red-600'}`}
                       >
-                        {item.available ? "Available" : "Unavailable"}
+                        {item.available ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                      </Button>
+                      {item.popularity && item.popularity > 0 && (
+                        <div className="flex items-center space-x-1">
+                          <Star className={`h-4 w-4 ${getPopularityColor(item.popularity)}`} />
+                          <span className={`text-sm ${getPopularityColor(item.popularity)}`}>
+                            {item.popularity}%
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Prep Time:</span>
+                      <span className="font-medium">{item.preparationTime} min</span>
+                    </div>
+                    
+                    <div>
+                      <Badge variant="outline" className="mb-2">
+                        {categories.find(cat => cat.id === item.category)?.name || item.category}
                       </Badge>
-                      
-                      <div className="flex gap-2 pt-2">
-                        <Button 
-                          size="sm" 
-                          onClick={() => openEditDialog(item)}
-                          className="flex-1"
-                        >
-                          <Edit3 className="h-4 w-4 mr-2" />
-                          Edit
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="destructive"
-                          onClick={() => deleteItem(item.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                      <div className="flex flex-wrap gap-1">
+                        {item.dietary?.map((diet: string) => (
+                          <Badge key={diet} variant="secondary" className="text-xs">
+                            {diet}
+                          </Badge>
+                        ))}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </Tabs>
+                    
+                    <Badge 
+                      variant={item.available ? "default" : "secondary"}
+                      className={item.available ? "bg-green-500" : "bg-red-500"}
+                    >
+                      {item.available ? "Available" : "Unavailable"}
+                    </Badge>
+                    
+                    <div className="flex gap-2 pt-2">
+                      <Button 
+                        size="sm" 
+                        onClick={() => openEditDialog(item)}
+                        className="flex-1"
+                      >
+                        <Edit3 className="h-4 w-4 mr-2" />
+                        Edit
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="destructive"
+                        onClick={() => deleteItem(item.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         )}
 
-        {filteredItems.length === 0 && menuItems.length > 0 && (
+        {filteredItems.length === 0 && items.length > 0 && (
           <div className="text-center py-12">
             <ChefHat className="h-24 w-24 text-gray-300 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-600 mb-2">No items found</h3>
@@ -431,7 +410,7 @@ const MenuManagement = () => {
                   </SelectTrigger>
                   <SelectContent>
                     {categories.map(category => (
-                      <SelectItem key={category} value={category}>{category}</SelectItem>
+                      <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
