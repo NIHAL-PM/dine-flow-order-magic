@@ -4,7 +4,7 @@ import { enhancedDB } from '@/services/enhancedDatabase';
 
 interface Notification {
   id: string;
-  type: 'order' | 'kitchen' | 'billing' | 'table' | 'system' | 'inventory';
+  type: 'order' | 'kitchen' | 'billing' | 'table' | 'system' | 'inventory' | 'reservation' | 'workflow';
   title: string;
   message: string;
   timestamp: Date;
@@ -48,6 +48,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     refreshNotifications();
 
+    // Database update listener
     const handleDatabaseUpdate = (event: CustomEvent) => {
       try {
         const { table, data } = event.detail;
@@ -70,21 +71,66 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
+    // Workflow update listener
+    const handleWorkflowUpdate = (event: CustomEvent) => {
+      try {
+        const { step, orderData } = event.detail;
+        handleWorkflowNotifications(step, orderData);
+      } catch (error) {
+        console.error('Error handling workflow notification:', error);
+      }
+    };
+
+    // Inventory update listener
+    const handleInventoryUpdate = (event: CustomEvent) => {
+      try {
+        const { type, data } = event.detail;
+        handleAdvancedInventoryNotifications(type, data);
+      } catch (error) {
+        console.error('Error handling inventory notification:', error);
+      }
+    };
+
+    // Reservation update listener
+    const handleReservationUpdate = (event: CustomEvent) => {
+      try {
+        const { type, reservation } = event.detail;
+        handleReservationNotifications(type, reservation);
+      } catch (error) {
+        console.error('Error handling reservation notification:', error);
+      }
+    };
+
+    // Waitlist update listener
+    const handleWaitlistUpdate = (event: CustomEvent) => {
+      try {
+        const { type, entry } = event.detail;
+        handleWaitlistNotifications(type, entry);
+      } catch (error) {
+        console.error('Error handling waitlist notification:', error);
+      }
+    };
+
     window.addEventListener('databaseUpdate', handleDatabaseUpdate as EventListener);
+    window.addEventListener('orderWorkflowUpdate', handleWorkflowUpdate as EventListener);
+    window.addEventListener('inventoryUpdate', handleInventoryUpdate as EventListener);
+    window.addEventListener('reservationUpdate', handleReservationUpdate as EventListener);
+    window.addEventListener('waitlistUpdate', handleWaitlistUpdate as EventListener);
 
     return () => {
       window.removeEventListener('databaseUpdate', handleDatabaseUpdate as EventListener);
+      window.removeEventListener('orderWorkflowUpdate', handleWorkflowUpdate as EventListener);
+      window.removeEventListener('inventoryUpdate', handleInventoryUpdate as EventListener);
+      window.removeEventListener('reservationUpdate', handleReservationUpdate as EventListener);
+      window.removeEventListener('waitlistUpdate', handleWaitlistUpdate as EventListener);
     };
   }, []);
 
   const refreshNotifications = async () => {
     try {
-      // In a real app, notifications would be stored in the database
-      // For now, we'll keep them in memory but could extend to persist
       const today = new Date();
       const dayAgo = new Date(today.getTime() - 24 * 60 * 60 * 1000);
       
-      // Filter notifications to keep only recent ones
       setNotifications(prev => prev.filter(n => n.timestamp > dayAgo));
     } catch (error) {
       console.error('Failed to refresh notifications:', error);
@@ -131,9 +177,153 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const handleWorkflowNotifications = (step: string, orderData: any) => {
+    try {
+      let title = '';
+      let message = '';
+      let priority: Notification['priority'] = 'medium';
+      let actionUrl = '';
+
+      switch (step) {
+        case 'kitchen_confirmed':
+          title = 'Order Confirmed';
+          message = `Order ${orderData.tokenNumber} confirmed by kitchen`;
+          actionUrl = '/kitchen';
+          break;
+        case 'preparing':
+          title = 'Order Being Prepared';
+          message = `Order ${orderData.tokenNumber} is now being prepared`;
+          actionUrl = '/kitchen';
+          break;
+        case 'ready':
+          title = 'Order Ready';
+          message = `Order ${orderData.tokenNumber} is ready to serve`;
+          priority = 'high';
+          actionUrl = '/billing';
+          break;
+        case 'served':
+          title = 'Order Served';
+          message = `Order ${orderData.tokenNumber} has been served`;
+          actionUrl = '/billing';
+          break;
+        default:
+          return;
+      }
+
+      addNotification({
+        type: 'workflow',
+        title,
+        message,
+        priority,
+        actionUrl,
+        data: { orderId: orderData.id, step }
+      });
+    } catch (error) {
+      console.error('Error handling workflow notifications:', error);
+    }
+  };
+
+  const handleAdvancedInventoryNotifications = (type: string, data: any) => {
+    try {
+      switch (type) {
+        case 'low_stock_alert':
+          addNotification({
+            type: 'inventory',
+            title: 'Low Stock Alert',
+            message: `${data.alert.itemName} is running low (${data.alert.currentStock} remaining)`,
+            priority: data.alert.severity === 'critical' ? 'urgent' : 'high',
+            actionUrl: '/menu',
+            data: { itemId: data.item.id, alertId: data.alert.id }
+          });
+          break;
+        case 'expiry_alert':
+          addNotification({
+            type: 'inventory',
+            title: 'Item Expiry Alert',
+            message: data.message,
+            priority: data.severity === 'critical' ? 'urgent' : 'medium',
+            actionUrl: '/menu',
+            data: { itemId: data.item.id }
+          });
+          break;
+        case 'stock_movement':
+          if (data.movement.type === 'OUT' && data.item.currentStock <= data.item.minimumStock) {
+            addNotification({
+              type: 'inventory',
+              title: 'Stock Level Warning',
+              message: `${data.item.name} stock is now below minimum level`,
+              priority: 'medium',
+              actionUrl: '/menu',
+              data: { itemId: data.item.id }
+            });
+          }
+          break;
+      }
+    } catch (error) {
+      console.error('Error handling inventory notifications:', error);
+    }
+  };
+
+  const handleReservationNotifications = (type: string, reservation: any) => {
+    try {
+      switch (type) {
+        case 'created':
+          addNotification({
+            type: 'reservation',
+            title: 'New Reservation',
+            message: `Reservation for ${reservation.customerName} - ${reservation.partySize} people at ${reservation.time}`,
+            priority: 'medium',
+            actionUrl: '/tables',
+            data: { reservationId: reservation.id }
+          });
+          break;
+        case 'updated':
+          if (reservation.status === 'arrived') {
+            addNotification({
+              type: 'reservation',
+              title: 'Customer Arrived',
+              message: `${reservation.customerName} has arrived for their reservation`,
+              priority: 'high',
+              actionUrl: '/tables',
+              data: { reservationId: reservation.id }
+            });
+          }
+          break;
+        case 'reminder_sent':
+          addNotification({
+            type: 'reservation',
+            title: 'Reminder Sent',
+            message: `Reminder sent to ${reservation.customerName} for reservation at ${reservation.time}`,
+            priority: 'low',
+            actionUrl: '/tables',
+            data: { reservationId: reservation.id }
+          });
+          break;
+      }
+    } catch (error) {
+      console.error('Error handling reservation notifications:', error);
+    }
+  };
+
+  const handleWaitlistNotifications = (type: string, entry: any) => {
+    try {
+      if (type === 'added') {
+        addNotification({
+          type: 'table',
+          title: 'Customer Added to Waitlist',
+          message: `${entry.customerName} (party of ${entry.partySize}) added to waitlist`,
+          priority: 'medium',
+          actionUrl: '/tables',
+          data: { waitlistId: entry.id }
+        });
+      }
+    } catch (error) {
+      console.error('Error handling waitlist notifications:', error);
+    }
+  };
+
   const handleTableNotifications = (tables: any[]) => {
     try {
-      // Handle table cleaning notifications
       const needsCleaning = tables.filter(table => table.status === 'cleaning');
       
       needsCleaning.forEach(table => {
@@ -153,7 +343,6 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
 
   const handleInventoryNotifications = (items: any[]) => {
     try {
-      // Handle low stock notifications
       const lowStockItems = items.filter(item => 
         item.stockQuantity && item.stockQuantity < 10
       );
@@ -182,9 +371,8 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
         read: false
       };
 
-      setNotifications(prev => [newNotification, ...prev].slice(0, 100)); // Keep last 100
+      setNotifications(prev => [newNotification, ...prev].slice(0, 100));
       
-      // Show toast notification
       const toastConfig: any = {
         description: notificationData.message,
       };
@@ -207,7 +395,6 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
           toast.success(notificationData.title, toastConfig);
       }
 
-      // Play sound if enabled
       if (playSound) {
         playNotificationSound(notificationData.priority);
       }
@@ -260,7 +447,6 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
 
   const playNotificationSound = (priority: string = 'medium') => {
     try {
-      // Different tones for different priorities
       const frequencies = {
         urgent: [800, 1000, 800],
         high: [600, 800],
